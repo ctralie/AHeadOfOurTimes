@@ -12,6 +12,7 @@
 #include "EggAvatar.h"
 #include <FaceTrackLib.h>
 #include "FTHelper.h"
+#include "FaceMask.h"
 
 
 BOOL beyondBounds;//Added by Christopher
@@ -24,13 +25,15 @@ public:
         , m_hWnd(NULL)
         , m_hAccelTable(NULL)
         , m_pImageBuffer(NULL)
+		, m_pDepthImageBuffer(NULL)
         , m_pVideoBuffer(NULL)
         , m_depthType(NUI_IMAGE_TYPE_DEPTH_AND_PLAYER_INDEX)
         , m_colorType(NUI_IMAGE_TYPE_COLOR)
-        , m_depthRes(NUI_IMAGE_RESOLUTION_320x240)
+        , m_depthRes(NUI_IMAGE_RESOLUTION_640x480)
         , m_colorRes(NUI_IMAGE_RESOLUTION_640x480)
         , m_bNearMode(TRUE)
         , m_bSeatedSkeletonMode(FALSE)
+		, m_faceMask(NULL)
     {}
 
     int Run(HINSTANCE hInst, PWSTR lpCmdLine, int nCmdShow);
@@ -45,6 +48,7 @@ protected:
     static INT_PTR CALLBACK     About(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
     BOOL                        PaintWindow(HDC hdc, HWND hWnd);
     BOOL                        ShowVideo(HDC hdc, int width, int height, int originX, int originY);
+	BOOL						ShowDepthSegmented(HDC hdc, int width, int height, int originX, int originY);
     BOOL                        ShowEggAvatar(HDC hdc, int width, int height, int originX, int originY);
     static void                 FTHelperCallingBack(LPVOID lpParam);
     static int const            MaxLoadStringChars = 100;
@@ -55,6 +59,7 @@ protected:
     EggAvatar                   m_eggavatar;
     FTHelper                    m_FTHelper;
     IFTImage*                   m_pImageBuffer;
+	IFTImage*					m_pDepthImageBuffer;
     IFTImage*                   m_pVideoBuffer;
 
     NUI_IMAGE_TYPE              m_depthType;
@@ -63,6 +68,7 @@ protected:
     NUI_IMAGE_RESOLUTION        m_colorRes;
     BOOL                        m_bNearMode;
     BOOL                        m_bSeatedSkeletonMode;
+	BOOL*						m_faceMask;//Stores a mask that denotes where the pixels are in a face image
 };
 
 // Run the SingleFace application.
@@ -113,6 +119,7 @@ BOOL SingleFace::InitInstance(HINSTANCE hInstance, PWSTR lpCmdLine, int nCmdShow
     m_hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SINGLEFACE));
 
     m_pImageBuffer = FTCreateImage();
+	m_pDepthImageBuffer = FTCreateImage();
     m_pVideoBuffer = FTCreateImage();
 
     m_hWnd = CreateWindow(szWindowClass, szTitleComplete, WS_OVERLAPPEDWINDOW,
@@ -123,6 +130,8 @@ BOOL SingleFace::InitInstance(HINSTANCE hInstance, PWSTR lpCmdLine, int nCmdShow
     }
 
 	beyondBounds = FALSE;
+
+	m_faceMask = new BOOL[640 * 480];
 
     ShowWindow(m_hWnd, nCmdShow);
     UpdateWindow(m_hWnd);
@@ -136,7 +145,8 @@ BOOL SingleFace::InitInstance(HINSTANCE hInstance, PWSTR lpCmdLine, int nCmdShow
         TRUE, // if near mode doesn't work, fall back to default mode
         m_colorType,
         m_colorRes,
-        m_bSeatedSkeletonMode));
+        m_bSeatedSkeletonMode,
+		m_faceMask));
 }
 
 void SingleFace::UninitInstance()
@@ -164,6 +174,7 @@ void SingleFace::UninitInstance()
         m_pVideoBuffer->Release();
         m_pVideoBuffer = NULL;
     }
+	delete[] m_faceMask;
 }
 
 
@@ -337,6 +348,87 @@ BOOL SingleFace::ShowVideo(HDC hdc, int width, int height, int originX, int orig
     return ret;
 }
 
+
+// Drawing the segmented depth vertices
+BOOL SingleFace::ShowDepthSegmented(HDC hdc, int width, int height, int originX, int originY)
+{
+	BOOL ret = TRUE;
+
+	// Now, copy a fraction of the camera image into the screen.
+	IFTImage* depthImage = m_FTHelper.GetDepthImage();
+	if (depthImage)
+	{
+		int iWidth = depthImage->GetWidth();
+		int iHeight = depthImage->GetHeight();
+		if (iWidth > 0 && iHeight > 0)
+		{
+			int iTop = 0;
+			int iBottom = iHeight;
+			int iLeft = 0;
+			int iRight = iWidth;
+			
+			// Keep a separate buffer.
+			//FTIMAGEFORMAT_UINT16_D13P3
+			//"16-bit per pixel depth data that represents the distance to a pixel in millimeters. 
+			//The last three bits represent the user ID (Kinect's depth data format)."
+			if (m_pDepthImageBuffer && SUCCEEDED(m_pDepthImageBuffer->Allocate(iWidth, iHeight, FTIMAGEFORMAT_UINT16_D13P3)))
+			{
+				// Copy do the video buffer while converting bytes
+				depthImage->CopyTo(m_pDepthImageBuffer, NULL, 0, 0);
+				BYTE* buffer = m_pDepthImageBuffer->GetBuffer();
+				//Now mask the depth image by where the face actually is
+				for (int i = 0; i < iHeight; i++) {
+					int offset = i*iWidth;
+					for (int j = 0; j < iWidth; j++) {
+						short* ptr = (short*)(buffer + 2 * (offset + j));
+						if (m_faceMask[offset + j] == FALSE) {
+							*ptr = 0;
+						}
+					}
+				}
+
+				// Compute the best approximate copy ratio.
+				float w1 = (float)iHeight * (float)width;
+				float w2 = (float)iWidth * (float)height;
+				if (w2 > w1 && height > 0)
+				{
+					// video image too wide
+					float wx = w1 / height;
+					iLeft = (int)max(0, m_FTHelper.GetXCenterFace() - wx / 2);
+					iRight = iLeft + (int)wx;
+					if (iRight > iWidth)
+					{
+						iRight = iWidth;
+						iLeft = iRight - (int)wx;
+					}
+				}
+				else if (w1 > w2 && width > 0)
+				{
+					// video image too narrow
+					float hy = w2 / width;
+					iTop = (int)max(0, m_FTHelper.GetYCenterFace() - hy / 2);
+					iBottom = iTop + (int)hy;
+					if (iBottom > iHeight)
+					{
+						iBottom = iHeight;
+						iTop = iBottom - (int)hy;
+					}
+				}
+
+				int const bmpPixSize = m_pDepthImageBuffer->GetBytesPerPixel();
+				SetStretchBltMode(hdc, HALFTONE);
+				BITMAPINFO bmi = { sizeof(BITMAPINFO), iWidth, iHeight, 1, static_cast<WORD>(bmpPixSize * CHAR_BIT), BI_RGB, m_pDepthImageBuffer->GetStride() * iHeight, 5000, 5000, 0, 0 };
+				if (0 == StretchDIBits(hdc, originX, originY, width, height,
+					iLeft, iBottom, iRight - iLeft, iTop - iBottom, m_pDepthImageBuffer->GetBuffer(), &bmi, DIB_RGB_COLORS, SRCCOPY))
+				{
+					ret = FALSE;
+				}
+			}
+		}
+	}
+	return ret;
+}
+
 // Drawing code
 BOOL SingleFace::ShowEggAvatar(HDC hdc, int width, int height, int originX, int originY)
 {
@@ -374,8 +466,10 @@ BOOL SingleFace::PaintWindow(HDC hdc, HWND hWnd)
     errCount += !ShowVideo(hdc, width - halfWidth, height, halfWidth, 0);
 
     // Draw the egg avatar on the left of the window
-    errCount += !ShowEggAvatar(hdc, halfWidth, height, 0, 0);
-    return ret;
+    //errCount += !ShowEggAvatar(hdc, halfWidth, height, 0, 0);
+    
+	errCount += !ShowDepthSegmented(hdc, halfWidth, height, 0, 0);
+	return ret;
 }
 
 /*
@@ -401,17 +495,8 @@ void SingleFace::FTHelperCallingBack(PVOID pVoid)
             pResult->Get3DPose(&scale, rotationXYZ, translationXYZ);
             pApp->m_eggavatar.SetTranslations(translationXYZ[0], translationXYZ[1], translationXYZ[2]);
             pApp->m_eggavatar.SetRotations(rotationXYZ[0], rotationXYZ[1], rotationXYZ[2]);
-			
-			//Added by Christopher: Output Rotation Information to the debugger
-			//0 index: Up/Down tilt
-			//1 index: Left/Right tilt
-			//2 index: Roll tilt (not as important for your application)
-			/*std::stringstream ss;
-			ss << "rotationXYZ = (" << rotationXYZ[0] << ", " << rotationXYZ[1] << ", " << rotationXYZ[2] << ")\n";
-			std::string s = ss.str();
-			std::wstring sw = std::wstring(s.begin(), s.end());
-			LPCWSTR outStrWPr = sw.c_str();
-			OutputDebugString(outStrWPr);*/
+
+			pApp->m_FTHelper.saveOffFile();
         }
     }
 }

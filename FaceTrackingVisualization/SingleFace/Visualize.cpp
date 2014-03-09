@@ -215,6 +215,3 @@ HRESULT VisualizeFaceModel(IFTImage* pColorImg, IFTModel* pModel, FT_CAMERA_CONF
     }
     return hr;
 }
-
-
-

@@ -7,6 +7,8 @@
 #include "StdAfx.h"
 #include "FTHelper.h"
 #include "Visualize.h"
+#include "SaveFaceMesh.h"
+#include "FaceMask.h"
 
 #ifdef SAMPLE_OPTIONS
 #include "Options.h"
@@ -34,6 +36,7 @@ FTHelper::FTHelper()
     m_bFallbackToDefault = FALSE;
     m_colorType = NUI_IMAGE_TYPE_COLOR;
     m_colorRes = NUI_IMAGE_RESOLUTION_INVALID;
+	m_faceMask = NULL;
 }
 
 FTHelper::~FTHelper()
@@ -42,7 +45,9 @@ FTHelper::~FTHelper()
 }
 
 HRESULT FTHelper::Init(HWND hWnd, FTHelperCallBack callBack, PVOID callBackParam, 
-                       NUI_IMAGE_TYPE depthType, NUI_IMAGE_RESOLUTION depthRes, BOOL bNearMode, BOOL bFallbackToDefault, NUI_IMAGE_TYPE colorType, NUI_IMAGE_RESOLUTION colorRes, BOOL bSeatedSkeletonMode)
+                       NUI_IMAGE_TYPE depthType, NUI_IMAGE_RESOLUTION depthRes, 
+					   BOOL bNearMode, BOOL bFallbackToDefault, NUI_IMAGE_TYPE colorType, 
+					   NUI_IMAGE_RESOLUTION colorRes, BOOL bSeatedSkeletonMode, BOOL* faceMask)
 {
     if (!hWnd || !callBack)
     {
@@ -59,6 +64,7 @@ HRESULT FTHelper::Init(HWND hWnd, FTHelperCallBack callBack, PVOID callBackParam
     m_bSeatedSkeletonMode = bSeatedSkeletonMode;
     m_colorType = colorType;
     m_colorRes = colorRes;
+	m_faceMask = faceMask;
     m_hFaceTrackingThread = CreateThread(NULL, 0, FaceTrackingStaticThread, (PVOID)this, 0, 0);
     return S_OK;
 }
@@ -72,6 +78,11 @@ HRESULT FTHelper::Stop()
     }
     m_hFaceTrackingThread = 0;
     return S_OK;
+}
+
+void FTHelper::saveOffFile() {
+	saveFaceMesh(m_colorImage, m_colorRes, m_depthImage, m_depthRes, m_faceMask);
+	exit(0);
 }
 
 BOOL FTHelper::SubmitFraceTrackingResult(IFTResult* pResult)
@@ -106,13 +117,7 @@ BOOL FTHelper::SubmitFraceTrackingResult(IFTResult* pResult)
             if (SUCCEEDED(hr))
             {
                 hr = VisualizeFaceModel(m_colorImage, ftModel, &cameraConfig, pSU, 1.0, viewOffset, pResult, 0x00FFFF00);
-				int N = ftModel->GetVertexCount();
-				std::stringstream ss;
-				ss << "NVertices = " << N << "\n";
-				std::string s = ss.str();
-				std::wstring sw = std::wstring(s.begin(), s.end());
-				LPCWSTR outStrWPr = sw.c_str();
-				OutputDebugString(outStrWPr);
+				hr = getFaceMask(m_faceMask, ftModel, &cameraConfig, pSU, 1.0, viewOffset, pResult);
                 ftModel->Release();
             }
         }
@@ -148,7 +153,6 @@ void FTHelper::SetCenterOfImage(IFTResult* pResult)
 void FTHelper::CheckCameraInput()
 {
     HRESULT hrFT = E_FAIL;
-
     if (m_KinectSensorPresent && m_KinectSensor.GetVideoBuffer())
     {
         HRESULT hrCopy = m_KinectSensor.GetVideoBuffer()->CopyTo(m_colorImage, NULL, 0, 0);

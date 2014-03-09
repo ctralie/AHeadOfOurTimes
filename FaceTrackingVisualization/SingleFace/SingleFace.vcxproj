@@ -193,6 +193,8 @@ xcopy "$(FTSDK_DIR)Redist\amd64\FaceTrackData.dll" "$(OutDir)" /eiycq
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="eggavatar.h" />
+    <ClInclude Include="FaceMask.h" />
+    <ClInclude Include="SaveFaceMesh.h" />
     <ClInclude Include="SingleFace.h" />
     <ClInclude Include="FTHelper.h" />
     <ClInclude Include="KinectSensor.h" />
@@ -203,6 +205,8 @@ xcopy "$(FTSDK_DIR)Redist\amd64\FaceTrackData.dll" "$(OutDir)" /eiycq
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="eggavatar.cpp" />
+    <ClCompile Include="FaceMask.cpp" />
+    <ClCompile Include="SaveFaceMesh.cpp" />
     <ClCompile Include="SingleFace.cpp" />
     <ClCompile Include="FTHelper.cpp" />
     <ClCompile Include="KinectSensor.cpp" />

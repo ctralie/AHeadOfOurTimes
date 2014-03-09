@@ -17,17 +17,19 @@ public:
     ~FTHelper();
 
     HRESULT Init(HWND hWnd, FTHelperCallBack callBack, PVOID callBackParam, 
-        NUI_IMAGE_TYPE depthType, NUI_IMAGE_RESOLUTION depthRes, BOOL bNearMode, BOOL bFallbackToDefault, NUI_IMAGE_TYPE colorType, NUI_IMAGE_RESOLUTION colorRes, BOOL bSeatedSkeletonMode);
+        NUI_IMAGE_TYPE depthType, NUI_IMAGE_RESOLUTION depthRes, BOOL bNearMode, BOOL bFallbackToDefault, NUI_IMAGE_TYPE colorType, NUI_IMAGE_RESOLUTION colorRes, BOOL bSeatedSkeletonMode, BOOL* faceMask);
     HRESULT Stop();
     IFTResult* GetResult()      { return(m_pFTResult);}
     BOOL IsKinectPresent()      { return(m_KinectSensorPresent);}
     IFTImage* GetColorImage()   { return(m_colorImage);}
+	IFTImage* GetDepthImage()	{ return(m_depthImage); }
     float GetXCenterFace()      { return(m_XCenterFace);}
     float GetYCenterFace()      { return(m_YCenterFace);}
     void SetDrawMask(BOOL drawMask) { m_DrawMask = drawMask;}
     BOOL GetDrawMask()          { return(m_DrawMask);}
     IFTFaceTracker* GetTracker() { return(m_pFaceTracker);}
     HRESULT GetCameraConfig(FT_CAMERA_CONFIG* cameraConfig);
+	void saveOffFile();
 
 private:
     KinectSensor                m_KinectSensor;
@@ -53,6 +55,8 @@ private:
     BOOL                        m_bSeatedSkeletonMode;
     NUI_IMAGE_TYPE              m_colorType;
     NUI_IMAGE_RESOLUTION        m_colorRes;
+	BOOL*						m_faceMask;
+	int							successCount;
 
     BOOL SubmitFraceTrackingResult(IFTResult* pResult);
     void SetCenterOfImage(IFTResult* pResult);

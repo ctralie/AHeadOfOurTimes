@@ -1,0 +1,70 @@
+#include <stdafx.h>
+#include <FaceTrackLib.h>
+#include <fstream>
+#include <iostream>
+#include <math.h>
+#include <NuiApi.h>
+#include "FTHelper.h"
+
+using namespace std;
+
+void saveFaceMesh(IFTImage* colorImage, NUI_IMAGE_RESOLUTION colorRes, 
+	IFTImage* depthImage, NUI_IMAGE_RESOLUTION depthRes, BOOL* faceMask) {
+	BYTE* depthImageBuffer = depthImage->GetBuffer();
+	BYTE* colorImageBuffer = colorImage->GetBuffer();
+	int iWidth = depthImage->GetWidth();
+	int iHeight = depthImage->GetHeight();
+
+	//Initialize array that stores the index of each vertex
+	int N = 0;
+	LONG* vertexIndices = new LONG[iWidth*iHeight];
+	for (int y = 0; y < iHeight; y++) {
+		int offset = y*iHeight;
+		for (int x = 0; x < iWidth; x++) {
+			int index = offset + x;
+			if (faceMask[index]) {
+				vertexIndices[index] = N;
+				N++;
+			}
+			else {
+				vertexIndices[index] = -1;
+			}
+		}
+	}
+
+
+	ofstream offFile;
+	offFile.open("C:\\Users\\ctralie\\Desktop\\out.off");
+	offFile << "OFF\n";
+	offFile << N << " 0 0\n";
+
+	for (int y = 0; y < iHeight; y++) {
+		int offset = y*iWidth;
+		for (int x = 0; x < iWidth; x++) {
+			if (!faceMask[offset + x])
+				continue;
+			USHORT* ptr = (USHORT*)(depthImageBuffer + 2 * (offset + x));
+			USHORT usDepthValue = *ptr;
+			Vector4 P = NuiTransformDepthImageToSkeleton(x, y, usDepthValue, depthRes);//This doesn't work
+			LONG plColorX, plColorY;
+			NuiImageGetColorPixelCoordinatesFromDepthPixelAtResolution(colorRes, depthRes, NULL, x, y, usDepthValue, &plColorX, &plColorY);
+			LONG index = plColorX + plColorY*iWidth;
+			BYTE R = colorImageBuffer[index * 3];
+			BYTE G = colorImageBuffer[index * 3 + 1];
+			BYTE B = colorImageBuffer[index * 3 + 2];
+			//FLOAT Z = (FLOAT)(usDepthValue/1000.0f);
+			//TODO: This assumes the depth camera center is the center of the image
+			//FLOAT X = (FLOAT)(x - W / 2)*Z/f;
+			//FLOAT Y = (FLOAT)(y - H / 2)*Z/f;
+			//FLOAT X = P.x / P.w;
+			//FLOAT Y = P.y / P.w;
+			//FLOAT Z = P.z / P.w;
+			FLOAT X = (x - iWidth / 2) / 320.0f;
+			FLOAT Y = (y - iHeight / 2) / 240.0f;
+			FLOAT Z = ((FLOAT)usDepthValue) / 1000.0f;
+			offFile << X << " " << Y << " " << Z << " " << (float)R / 255.0 << " " << (float)G / 255.0 << " " << (float)B / 255.0 << "\n";
+		}
+	}
+	offFile.close();
+	delete[] vertexIndices;
+}

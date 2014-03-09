@@ -44,6 +44,12 @@
     <ClInclude Include="FTHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="FaceMask.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SaveFaceMesh.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -62,6 +68,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="FTHelper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FaceMask.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SaveFaceMesh.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
