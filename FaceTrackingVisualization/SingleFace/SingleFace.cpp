@@ -495,8 +495,6 @@ void SingleFace::FTHelperCallingBack(PVOID pVoid)
             pResult->Get3DPose(&scale, rotationXYZ, translationXYZ);
             pApp->m_eggavatar.SetTranslations(translationXYZ[0], translationXYZ[1], translationXYZ[2]);
             pApp->m_eggavatar.SetRotations(rotationXYZ[0], rotationXYZ[1], rotationXYZ[2]);
-
-			pApp->m_FTHelper.saveOffFile();
         }
     }
 }

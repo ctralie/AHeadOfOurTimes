@@ -81,6 +81,7 @@ HRESULT FTHelper::Stop()
 }
 
 void FTHelper::saveOffFile() {
+	m_KinectSensor.GetVideoBuffer()->CopyTo(m_colorImage, NULL, 0, 0);
 	saveFaceMesh(m_colorImage, m_colorRes, m_depthImage, m_depthRes, m_faceMask);
 	exit(0);
 }
@@ -119,6 +120,7 @@ BOOL FTHelper::SubmitFraceTrackingResult(IFTResult* pResult)
                 hr = VisualizeFaceModel(m_colorImage, ftModel, &cameraConfig, pSU, 1.0, viewOffset, pResult, 0x00FFFF00);
 				hr = getFaceMask(m_faceMask, ftModel, &cameraConfig, pSU, 1.0, viewOffset, pResult);
                 ftModel->Release();
+				saveOffFile();
             }
         }
     }
