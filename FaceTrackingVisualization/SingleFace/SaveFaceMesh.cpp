@@ -58,9 +58,9 @@ void saveFaceMesh(IFTImage* colorImage, NUI_IMAGE_RESOLUTION colorRes,
 			LONG plColorX, plColorY;
 			NuiImageGetColorPixelCoordinatesFromDepthPixelAtResolution(colorRes, depthRes, NULL, x, y, usDepthValue, &plColorX, &plColorY);
 			LONG index = plColorX + plColorY*iWidth;
-			BYTE R = colorImageBuffer[index * 4];
+			BYTE B = colorImageBuffer[index * 4];
 			BYTE G = colorImageBuffer[index * 4 + 1];
-			BYTE B = colorImageBuffer[index * 4 + 2];
+			BYTE R = colorImageBuffer[index * 4 + 2];
 			BYTE A = colorImageBuffer[index * 4 + 3];
 			//FLOAT Z = (FLOAT)(usDepthValue/1000.0f);
 			//TODO: This assumes the depth camera center is the center of the image
