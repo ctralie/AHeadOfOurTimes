@@ -82,7 +82,8 @@ HRESULT FTHelper::Stop()
 
 void FTHelper::saveOffFile() {
 	m_KinectSensor.GetVideoBuffer()->CopyTo(m_colorImage, NULL, 0, 0);
-	saveFaceMesh(m_colorImage, m_colorRes, m_depthImage, m_depthRes, m_faceMask);
+	//saveFaceMesh(m_colorImage, m_colorRes, m_depthImage, m_depthRes, m_faceMask);
+	saveFaceMeshTempFile(m_colorImage, m_colorRes, m_depthImage, m_depthRes, m_faceMask);
 	exit(0);
 }
 

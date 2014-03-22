@@ -54,7 +54,7 @@ void saveFaceMesh(IFTImage* colorImage, NUI_IMAGE_RESOLUTION colorRes,
 			if (!faceMask[offset + x] || *ptr == 0)
 				continue;
 			USHORT usDepthValue = *ptr;
-			Vector4 P = NuiTransformDepthImageToSkeleton(x, y, usDepthValue, depthRes);//This doesn't work
+			Vector4 P = NuiTransformDepthImageToSkeleton(x, y, usDepthValue, depthRes);
 			LONG plColorX, plColorY;
 			NuiImageGetColorPixelCoordinatesFromDepthPixelAtResolution(colorRes, depthRes, NULL, x, y, usDepthValue, &plColorX, &plColorY);
 			LONG index = plColorX + plColorY*iWidth;
@@ -78,5 +78,58 @@ void saveFaceMesh(IFTImage* colorImage, NUI_IMAGE_RESOLUTION colorRes,
 	}
 	offFile.close();
 	plyFile.close();
+	delete[] vertexIndices;
+}
+
+
+void saveFaceMeshTempFile(IFTImage* colorImage, NUI_IMAGE_RESOLUTION colorRes,
+	IFTImage* depthImage, NUI_IMAGE_RESOLUTION depthRes, BOOL* faceMask) {
+	int iWidth = depthImage->GetWidth();
+	int iHeight = depthImage->GetHeight();
+
+	BYTE* depthImageBuffer = depthImage->GetBuffer();
+	BYTE* colorImageBuffer = colorImage->GetBuffer();
+	//Initialize array that stores the index of each vertex
+	int N = 0;
+	LONG* vertexIndices = new LONG[iWidth*iHeight];
+	for (int y = 0; y < iHeight; y++) {
+		int offset = y*iWidth;
+		for (int x = 0; x < iWidth; x++) {
+			int index = offset + x;
+			USHORT* ptr = (USHORT*)(depthImageBuffer + 2 * index);
+			if (faceMask[index] && *ptr > 0) {
+				vertexIndices[index] = N;
+				N++;
+			}
+			else {
+				vertexIndices[index] = -1;
+			}
+		}
+	}
+
+	ofstream tempFile;
+	tempFile.open("temp.txt");
+	for (int y = 0; y < iHeight; y++) {
+		int offset = y*iWidth;
+		for (int x = 0; x < iWidth; x++) {
+			USHORT* ptr = (USHORT*)(depthImageBuffer + 2 * (offset + x));
+			if (!faceMask[offset + x] || *ptr == 0)
+				continue;
+			USHORT usDepthValue = *ptr;
+			Vector4 P = NuiTransformDepthImageToSkeleton(x, y, usDepthValue, depthRes);
+			LONG plColorX, plColorY;
+			NuiImageGetColorPixelCoordinatesFromDepthPixelAtResolution(colorRes, depthRes, NULL, x, y, usDepthValue, &plColorX, &plColorY);
+			LONG index = plColorX + plColorY*iWidth;
+			BYTE B = colorImageBuffer[index * 4];
+			BYTE G = colorImageBuffer[index * 4 + 1];
+			BYTE R = colorImageBuffer[index * 4 + 2];
+			BYTE A = colorImageBuffer[index * 4 + 3];
+			FLOAT X = P.x / P.w;
+			FLOAT Y = P.y / P.w;
+			FLOAT Z = P.z / P.w;
+			tempFile << y << " " << x << " " << X << " " << Y << " " << Z << " " << (float)R / 255.0 << " " << (float)G / 255.0 << " " << (float)B / 255.0 << "\n";
+		}
+	}
+	tempFile.close();
 	delete[] vertexIndices;
 }
