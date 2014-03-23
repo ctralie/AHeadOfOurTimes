@@ -127,7 +127,7 @@ void saveFaceMeshTempFile(IFTImage* colorImage, NUI_IMAGE_RESOLUTION colorRes,
 			FLOAT X = P.x / P.w;
 			FLOAT Y = P.y / P.w;
 			FLOAT Z = P.z / P.w;
-			tempFile << y << " " << x << " " << X << " " << Y << " " << Z << " " << (float)R / 255.0 << " " << (float)G / 255.0 << " " << (float)B / 255.0 << "\n";
+			tempFile << y << " " << x << " " << X << " " << Y << " " << Z << " " << (int)R << " " << (int)G << " " << (int)B << "\n";
 		}
 	}
 	tempFile.close();
