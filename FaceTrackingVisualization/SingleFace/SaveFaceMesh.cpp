@@ -5,6 +5,7 @@
 #include <math.h>
 #include <NuiApi.h>
 #include "FTHelper.h"
+#include "SaveFaceMesh.h"
 
 using namespace std;
 
@@ -132,4 +133,47 @@ void saveFaceMeshTempFile(IFTImage* colorImage, NUI_IMAGE_RESOLUTION colorRes,
 	}
 	tempFile.close();
 	delete[] vertexIndices;
+}
+
+
+void getHeadCentroid(IFTImage* depthImage, NUI_IMAGE_RESOLUTION depthRes, BOOL* faceMask, FLOAT* cx, FLOAT* cy, FLOAT* cz) {
+	int iWidth = depthImage->GetWidth();
+	int iHeight = depthImage->GetHeight();
+
+	BYTE* depthImageBuffer = depthImage->GetBuffer();
+	//Initialize array that stores the index of each vertex
+	int N = 0;
+	for (int y = 0; y < iHeight; y++) {
+		int offset = y*iWidth;
+		for (int x = 0; x < iWidth; x++) {
+			int index = offset + x;
+			USHORT* ptr = (USHORT*)(depthImageBuffer + 2 * index);
+			if (faceMask[index] && *ptr > 0) {
+				N++;
+			}
+		}
+	}
+
+	*cx = 0;
+	*cy = 0;
+	*cz = 0;
+	for (int y = 0; y < iHeight; y++) {
+		int offset = y*iWidth;
+		for (int x = 0; x < iWidth; x++) {
+			USHORT* ptr = (USHORT*)(depthImageBuffer + 2 * (offset + x));
+			if (!faceMask[offset + x] || *ptr == 0)
+				continue;
+			USHORT usDepthValue = *ptr;
+			Vector4 P = NuiTransformDepthImageToSkeleton(x, y, usDepthValue, depthRes);
+			FLOAT X = P.x / P.w;
+			FLOAT Y = P.y / P.w;
+			FLOAT Z = P.z / P.w;
+			*cx = *cx + X;
+			*cy = *cy + Y;
+			*cz = *cz + Z;
+		}
+	}
+	*cx = *cx / (FLOAT)N;
+	*cy = *cy / (FLOAT)N;
+	*cz = *cz / (FLOAT)N;
 }

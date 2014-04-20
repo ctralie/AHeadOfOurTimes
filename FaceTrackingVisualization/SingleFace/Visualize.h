@@ -9,6 +9,8 @@
 #include <FaceTrackLib.h>
 #include <math.h>
 
+HRESULT drawMuseumInterface(IFTImage* pColorImg, bool validPosition);
+
 HRESULT VisualizeFacetracker(IFTImage* pColorImg, IFTResult* pAAMRlt, UINT32 color);
 
 HRESULT VisualizeFaceModel(IFTImage* pColorImg, IFTModel* pModel, FT_CAMERA_CONFIG const* pCameraConfig, FLOAT const* pSUCoef, 

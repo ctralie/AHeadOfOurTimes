@@ -7,6 +7,11 @@
 #pragma once
 #include <FaceTrackLib.h>
 #include "KinectSensor.h"
+#include <fstream>
+#include <iostream>
+#include <ctime>
+
+using namespace std;
 
 typedef void (*FTHelperCallBack)(PVOID lpParam);
 
@@ -28,6 +33,7 @@ public:
     void SetDrawMask(BOOL drawMask) { m_DrawMask = drawMask;}
     BOOL GetDrawMask()          { return(m_DrawMask);}
     IFTFaceTracker* GetTracker() { return(m_pFaceTracker);}
+	std::string GetInterfaceText(){ return interfaceText;  }
     HRESULT GetCameraConfig(FT_CAMERA_CONFIG* cameraConfig);
 	void saveOffFile();
 
@@ -57,6 +63,10 @@ private:
     NUI_IMAGE_RESOLUTION        m_colorRes;
 	BOOL*						m_faceMask;
 	int							successCount;
+	ofstream					centroidFileOut;
+	std::string					interfaceText;
+	clock_t						validFaceStartTime;
+	bool						timingFace;
 
     BOOL SubmitFraceTrackingResult(IFTResult* pResult);
     void SetCenterOfImage(IFTResult* pResult);

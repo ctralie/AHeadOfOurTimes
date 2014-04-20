@@ -6,8 +6,7 @@ import os
 CONSISTENT_NORMALS = True
 
 #u v x y z r g b
-if __name__ == '__main__':
-	os.popen3("SingleFace")
+def extractMeshFiles():
 	fin = open("temp.txt")
 	lines = fin.readlines()
 	fin.close()
@@ -47,7 +46,8 @@ if __name__ == '__main__':
 		vals = lines[i].split(" ")
 		#x y z r g b
 		vals = vals[2:]
-		xyz = vals[0:3]
+		xyz = [float(a) for a in vals[0:3]]
+		xyz[2] = -xyz[2] #Compensate for coordinate system
 		rgb = [int(a) for a in vals[3:6]]
 		rgbfloat = [float(a)/255.0 for a in rgb]
 		offFile.write("%s %s %s %g %g %g\n"%(tuple(xyz + rgbfloat)))

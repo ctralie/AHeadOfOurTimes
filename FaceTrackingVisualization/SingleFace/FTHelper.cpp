@@ -9,6 +9,7 @@
 #include "Visualize.h"
 #include "SaveFaceMesh.h"
 #include "FaceMask.h"
+#include <ctime>
 
 #ifdef SAMPLE_OPTIONS
 #include "Options.h"
@@ -66,6 +67,7 @@ HRESULT FTHelper::Init(HWND hWnd, FTHelperCallBack callBack, PVOID callBackParam
     m_colorRes = colorRes;
 	m_faceMask = faceMask;
     m_hFaceTrackingThread = CreateThread(NULL, 0, FaceTrackingStaticThread, (PVOID)this, 0, 0);
+	centroidFileOut.open("centroids.txt");  
     return S_OK;
 }
 
@@ -121,7 +123,13 @@ BOOL FTHelper::SubmitFraceTrackingResult(IFTResult* pResult)
                 hr = VisualizeFaceModel(m_colorImage, ftModel, &cameraConfig, pSU, 1.0, viewOffset, pResult, 0x00FFFF00);
 				hr = getFaceMask(m_faceMask, ftModel, &cameraConfig, pSU, 1.0, viewOffset, pResult);
                 ftModel->Release();
-				saveOffFile();
+				//saveOffFile();
+				/*FLOAT cx, cy, cz;
+				getHeadCentroid(m_depthImage, m_depthRes, m_faceMask, &cx, &cy, &cz);
+				ofstream centroidFile;
+				centroidFile.open("C:\\Users\\ctralie\\Desktop\\out.csv", std::fstream::out | std::fstream::app);
+				centroidFile << cx << ", " << cy << ", " << cz << ",\n";
+				centroidFile.close();*/
             }
         }
     }
@@ -194,6 +202,49 @@ void FTHelper::CheckCameraInput()
         m_pFTResult->Reset();
     }
     SetCenterOfImage(m_pFTResult);
+	bool validPosition = false;
+	double avgXCoord = 0.0;
+	int NXCoords = 0;
+	if (m_LastTrackSucceeded) {
+		for (int x = 0; x < 640; x++) {
+			for (int y = 0; y < 480; y++) {
+				if (m_faceMask[y * 640 + x]) {
+					avgXCoord += (double)x;
+					NXCoords++;
+				}
+			}
+		}
+	}
+	avgXCoord = avgXCoord / (double)NXCoords;
+	int timeLeft = 3;
+	if (abs(avgXCoord - 320) < 25) {
+		double duration = 0.0;
+		if (timingFace == false) {
+			timingFace = true;
+			validFaceStartTime = std::clock();//Start timer
+		}
+		else { //Timer has already started
+			duration = (std::clock() - validFaceStartTime) / (double)CLOCKS_PER_SEC;
+		}
+		timeLeft = 3 - (int)floor(duration);
+		validPosition = true;
+		std::stringstream ss;
+		ss << "           " << timeLeft;
+		interfaceText = ss.str();
+	}
+	else {
+		timingFace = false;
+		std::stringstream ss;
+		ss << "Center Face on Line";
+		interfaceText = ss.str();
+	}
+	if (timeLeft <= 0) {
+		PlaySound(TEXT("CameraShutter.wav"), NULL, SND_ASYNC);
+		saveOffFile();
+	}
+	else {
+		drawMuseumInterface(m_colorImage, validPosition);
+	}
 }
 
 DWORD WINAPI FTHelper::FaceTrackingStaticThread(PVOID lpParam)

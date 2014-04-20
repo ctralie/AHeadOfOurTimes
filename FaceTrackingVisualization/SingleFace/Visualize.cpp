@@ -9,6 +9,51 @@
 #include <math.h>
 
 
+HRESULT drawMuseumInterface(IFTImage* pColorImg, bool validPosition) {
+	if (!pColorImg->GetBuffer())
+	{
+		return E_POINTER;
+	}
+	int H = pColorImg->GetHeight();
+	int W = pColorImg->GetWidth();
+	//Step 1: Draw vertical line
+	POINT midXBottom;
+	midXBottom.x = W/2;
+	midXBottom.y = 0;
+	POINT midXTop;
+	midXTop.x = W/2;
+	midXTop.y = H;
+	pColorImg->DrawLine(midXBottom, midXTop, 0x000000FF, 5);
+
+	//Step 2: Draw border
+	POINT topLeft;
+	topLeft.x = 0;
+	topLeft.y = 0;
+	POINT bottomLeft;
+	bottomLeft.x = 0;
+	bottomLeft.y = H;
+	POINT topRight;
+	topRight.x = W;
+	topRight.y = 0;
+	POINT bottomRight;
+	bottomRight.x = W;
+	bottomRight.y = H;
+
+	UINT32 color;
+	if (validPosition) {
+		color = 0x0000FF00;
+	}
+	else {
+		color = 0x00FF0000;
+	}
+	pColorImg->DrawLine(topLeft, topRight, color, 40);//Top line
+	pColorImg->DrawLine(bottomLeft, bottomRight, color, 40);//Bottom line
+	pColorImg->DrawLine(topLeft, bottomLeft, color, 20);//Left line
+	pColorImg->DrawLine(topRight, bottomRight, color, 20);//Right line
+
+	return TRUE;
+}
+
 HRESULT VisualizeFacetracker(IFTImage* pColorImg, IFTResult* pAAMRlt, UINT32 color)
 {
     if (!pColorImg->GetBuffer() || !pAAMRlt)

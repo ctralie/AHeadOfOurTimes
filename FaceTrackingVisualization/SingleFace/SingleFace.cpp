@@ -123,7 +123,7 @@ BOOL SingleFace::InitInstance(HINSTANCE hInstance, PWSTR lpCmdLine, int nCmdShow
     m_pVideoBuffer = FTCreateImage();
 
     m_hWnd = CreateWindow(szWindowClass, szTitleComplete, WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, NULL, NULL, m_hInst, this);
+        CW_USEDEFAULT, 0, 1024, 768, NULL, NULL, m_hInst, this);
     if (!m_hWnd)
     {
         return FALSE;
@@ -460,15 +460,31 @@ BOOL SingleFace::PaintWindow(HDC hdc, HWND hWnd)
     GetClientRect(hWnd, &rect);
     int width = rect.right - rect.left;
     int height = rect.bottom - rect.top;
-    int halfWidth = width/2;
 
     // Show the video on the right of the window
-    errCount += !ShowVideo(hdc, width - halfWidth, height, halfWidth, 0);
+    errCount += !ShowVideo(hdc, width, height, 0, 0);
+	std::string interfaceText = m_FTHelper.GetInterfaceText();
+	std::wstring sw = std::wstring(interfaceText.begin(), interfaceText.end());
+	LPCWSTR message = sw.c_str();
+
+	SetTextColor(hdc, 0x000000FF);
+	SetBkMode(hdc, TRANSPARENT);
+	rect.bottom = 100;
+	rect.top = 30;
+	rect.left = 1024/2 - 200;
+	rect.right = 1024/2 + 200;
+
+	HFONT hFont = CreateFont(72, 0, 0, 0, FW_DONTCARE, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_OUTLINE_PRECIS,
+		CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH, TEXT("Impact"));
+	SelectObject(hdc, hFont);
+
+	DrawText(hdc, message, -1, &rect, DT_SINGLELINE | DT_NOCLIP);
+
 
     // Draw the egg avatar on the left of the window
     //errCount += !ShowEggAvatar(hdc, halfWidth, height, 0, 0);
     
-	errCount += !ShowDepthSegmented(hdc, halfWidth, height, 0, 0);
+	//errCount += !ShowDepthSegmented(hdc, halfWidth, height, 0, 0);
 	return ret;
 }
 
