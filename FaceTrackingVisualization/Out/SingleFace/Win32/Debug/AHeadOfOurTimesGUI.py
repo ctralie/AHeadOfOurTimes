@@ -1,6 +1,7 @@
 #Based off of http://wiki.wxpython.org/GLCanvas
 #Lots of help from http://wiki.wxpython.org/Getting%20Started
 from OpenGL.GL import *
+from OpenGL.GLUT import *
 import wx
 from wx import glcanvas
 
@@ -22,6 +23,7 @@ import subprocess
 import math
 import time
 import subprocess
+from threading import Thread, Lock
 
 DEFAULT_SIZE = wx.Size(1200, 800)
 DEFAULT_POS = wx.Point(10, 10)
@@ -29,7 +31,7 @@ PRINCIPAL_AXES_SCALEFACTOR = 1
 
 (STATE_INTRO, STATE_SHOWPOINTS, STATE_SHOWMESH, STATE_SHOWICP, STATE_SHOWSTRETCH, STATE_FINALMATCHING, STATE_DECAY) = (0, 1, 2, 3, 4, 5, 6)
 
-(SHOWPOINTS_ZOOMIN, SHOWPOINTS_ROTATELEFT, SHOWPOINTS_ROTATERIGHT, SHOWPOINTS_ZOOMOUT) = (0, 1, 2, 3)
+(SHOWPOINTS_ZOOMIN, SHOWPOINTS_ROTATELEFT, SHOWPOINTS_ROTATERIGHT, SHOWPOINTS_CENTER, SHOWPOINTS_ZOOMOUT) = (0, 1, 2, 3, 4)
 
 def saveImageGL(mvcanvas, filename):
 	view = glGetIntegerv(GL_VIEWPORT)
@@ -50,6 +52,15 @@ def saveImage(canvas, filename):
 	m.SelectObject(wx.NullBitmap)
 	b.SaveFile(filename, wx.BITMAP_TYPE_PNG)
 	
+class ICPThread(Thread):
+	def __init__(self, userMesh, headMeshLowres, glcanvas, ICPMutex):
+		Thread.__init__(self)
+		self.userMesh = userMesh
+		self.headMeshLowres = headMeshLowres
+		self.glcanvas = glcanvas
+		self.ICPMutex = ICPMutex
+	def run(self):
+		ICP_MeshToMesh(self.userMesh, self.headMeshLowres, False, False, False, True, self.glcanvas, self.ICPMutex)
 
 class MeshViewerCanvas(glcanvas.GLCanvas):
 	def __init__(self, parent):
@@ -74,11 +85,17 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 		self.GUISubstate = -1
 		#Head Mesh
 		self.headMesh = PolyMesh()
-		#self.headMesh.loadFile('NotreDame.off')
+		self.headMesh.loadFile('NotreDame.off')
+		self.headMeshLowres = PolyMesh()
+		self.headMeshLowres.loadFile('NotreDameLowres.off')
 		self.rotAngle = 0
 		self.zoom = 0
+		self.rotCount = 0
 		#User's face
 		self.userMesh = None
+		#ICP state variables
+		self.ICPTransformation = np.zeros(0)
+		self.ICPMutex = Lock()
 		
 		self.bbox = self.headMesh.getBBox()
 		self.camera.centerOnBBox(self.bbox, theta = -math.pi/2, phi = math.pi/2)
@@ -98,6 +115,23 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 		wx.EVT_MIDDLE_UP(self, self.MouseUp)
 		wx.EVT_MOTION(self, self.MouseMotion)		
 		self.initGL()
+	
+	def drawText(self, x, y, text, size = 1, font = GLUT_BITMAP_TIMES_ROMAN_24):
+		glDisable(GL_LIGHTING)
+		glDisable(GL_DEPTH_TEST)
+		glMatrixMode(GL_PROJECTION)
+		glLoadIdentity()
+		gluOrtho2D(0, self.size[0], 0, self.size[1])
+		glMatrixMode(GL_MODELVIEW)
+		glLoadIdentity()
+		glColor3f(1, 0, 0)
+		glRasterPos2f(x, y)
+		glPushMatrix()
+		for i in range(len(text)):
+			glutBitmapCharacter(font, ord(text[i]))
+		glPopMatrix()
+		glEnable(GL_LIGHTING)
+		glEnable(GL_DEPTH_TEST)
 	
 	def startButtonHandler(self, evt):
 		print "Starting Face capture..."
@@ -136,6 +170,92 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 			self.GLinitialized = True
 		self.repaint()
 
+	def handleIntroState(self):
+		#Draw head
+		glTranslatef(0, 0, self.zCenter)
+		glRotatef(self.rotAngle, 0, 1, 0)
+		glTranslatef(0, 0, -self.zCenter)
+		self.headMesh.renderGL()
+		self.rotAngle = self.rotAngle + 1
+		self.rotAngle = self.rotAngle % 360
+		self.drawText(self.size[0]/2-50, self.size[1]-40, "A Head of Our Times")
+		time.sleep(0.01)
+		self.Refresh()
+		
+	def handleShowPointsState(self):
+		if self.GUISubstate == SHOWPOINTS_ZOOMIN:
+			glTranslatef(0, 0, self.zoom)
+			self.userMesh.renderGL(drawEdges = 1, drawVerts = 1, drawNormals = 0, drawFaces = 0)
+			glTranslatef(0, 0, -self.zoom)
+			self.zoom = self.zoom + 0.005
+			time.sleep(0.01)
+			if self.zoom >= abs(self.zCenter/5):
+				self.GUISubstate = SHOWPOINTS_ROTATELEFT
+				self.rotAngle = 0
+				self.rotCount = 0
+		elif self.GUISubstate == SHOWPOINTS_ROTATELEFT:
+			glTranslatef(0, 0, self.zCenter + self.zoom)
+			glRotatef(self.rotAngle, 0, 1, 0)
+			glTranslatef(0, 0, -self.zCenter)
+			if self.rotCount == 0:
+				self.userMesh.renderGL(drawEdges = 1, drawVerts = 1, drawNormals = 0, drawFaces = 0)
+			else:
+				self.userMesh.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
+			self.rotAngle = self.rotAngle - 1
+			if self.rotAngle < -60:
+				self.GUISubstate = SHOWPOINTS_ROTATERIGHT
+			time.sleep(0.01)
+		elif self.GUISubstate == SHOWPOINTS_ROTATERIGHT:
+			glTranslatef(0, 0, self.zCenter + self.zoom)
+			glRotatef(self.rotAngle, 0, 1, 0)
+			glTranslatef(0, 0, -self.zCenter)
+			if self.rotCount == 0:
+				self.userMesh.renderGL(drawEdges = 1, drawVerts = 1, drawNormals = 0, drawFaces = 0)
+			else:
+				self.userMesh.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
+			self.rotAngle = self.rotAngle + 1
+			if self.rotAngle > 60:
+				self.rotCount = self.rotCount + 1
+				if self.rotCount >= 2:
+					self.GUISubstate = SHOWPOINTS_CENTER
+				else:
+					self.GUISubstate = SHOWPOINTS_ROTATELEFT
+			time.sleep(0.01)
+		elif self.GUISubstate == SHOWPOINTS_CENTER:
+			glTranslatef(0, 0, self.zCenter + self.zoom)
+			glRotatef(self.rotAngle, 0, 1, 0)
+			glTranslatef(0, 0, -self.zCenter)
+			self.userMesh.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
+			self.rotAngle = self.rotAngle - 1
+			if self.rotAngle <= 0:
+				self.GUISubstate = SHOWPOINTS_ZOOMOUT
+			time.sleep(0.01)
+		elif self.GUISubstate == SHOWPOINTS_ZOOMOUT:
+			glTranslatef(0, 0, self.zoom)
+			self.userMesh.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
+			glTranslatef(0, 0, -self.zoom)
+			self.zoom = self.zoom - 0.005
+			time.sleep(0.01)
+			if self.zoom <= 0:
+				self.GUIState = STATE_SHOWICP
+				self.bbox = self.headMeshLowres.getBBox()
+				self.camera.centerOnBBox(self.bbox, theta = -math.pi/2, phi = math.pi/2)
+				#Get the mesh's renderbuffer ready before the thread starts so that no ICP frames are missed
+				self.headMeshLowres.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
+				t = ICPThread(self.userMesh, self.headMeshLowres, self, self.ICPMutex)
+				t.start()
+		self.drawText(self.size[0]/2-50, self.size[1]-40, "Showing Captured Face")
+		self.Refresh()
+	
+	def handleICPState(self):
+		glPushMatrix()
+		if self.ICPTransformation.shape[0] > 0:
+			glMultMatrixd(self.ICPTransformation.transpose().flatten())
+		self.userMesh.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
+		glPopMatrix()
+		self.headMeshLowres.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
+		self.drawText(self.size[0]/2-50, self.size[1]-40, "Aligning Face with Statue...")
+	
 	def repaint(self):
 		#Set up projection matrix
 		glMatrixMode(GL_PROJECTION)
@@ -162,27 +282,12 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 		self.zCenter = (self.bbox.zmax + self.bbox.zmin) / 2.0
 		
 		if self.GUIState == STATE_INTRO:
-			#Draw head
-			glTranslatef(0, 0, self.zCenter)
-			glRotatef(self.rotAngle, 0, 1, 0)
-			glTranslatef(0, 0, -self.zCenter)
-			self.headMesh.renderGL()
-			self.rotAngle = self.rotAngle + 1
-			self.rotAngle = self.rotAngle % 360
-			time.sleep(0.01)
+			self.handleIntroState()
 		elif self.GUIState == STATE_SHOWPOINTS:
-			if self.GUISubstate == SHOWPOINTS_ZOOMIN:
-				glTranslatef(0, 0, -self.zoom)
-				self.userMesh.renderGL(drawEdges = 1, drawVerts = 1, drawNormals = 0, drawFaces = 0)
-				glTranslatef(0, 0, self.zoom)
-				self.zoom = self.zoom - 0.001
-				time.sleep(0.01)
-				if self.zoom <= self.zCenter/2:
-					self.GUISubstate = SHOWPOINTS_ROTATELEFT
-			elif self.GUISubstate == SHOWPOINTS_ROTATELEFT:
-				print "TODO"
+			self.handleShowPointsState()
+		elif self.GUIState == STATE_SHOWICP:
+			self.handleICPState()
 		self.SwapBuffers()
-		self.Refresh()
 	
 	def initGL(self):		
 		glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.2, 0.2, 0.2, 1.0])
@@ -253,14 +358,14 @@ class MeshViewerFrame(wx.Frame):
 		self.glcanvas = MeshViewerCanvas(self)
 		
 		#Text at the top
-		titleText = wx.StaticText(self, label="Capturing Decay")
+		#titleText = wx.StaticText(self, label="Capturing Decay")
 		#Buttons to go to a default view
-		startButton = wx.Button(self, -1, "Let's Get Started", size = (400, 100))
+		startButton = wx.Button(self, -1, "Click To Start", size = (400, 100))
 		self.Bind(wx.EVT_BUTTON, self.glcanvas.startButtonHandler, startButton)
 		
 		#Finally add the two main panels to the sizer		
 		self.sizer = wx.BoxSizer(wx.VERTICAL)
-		self.sizer.Add(titleText, 0, wx.EXPAND)
+		#self.sizer.Add(titleText, 0, wx.EXPAND)
 		self.sizer.Add(self.glcanvas, 2, wx.EXPAND)
 		self.sizer.Add(startButton, 0, wx.FIXED)
 		
