@@ -85,7 +85,7 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 		self.GUISubstate = -1
 		#Head Mesh
 		self.headMesh = PolyMesh()
-		self.headMesh.loadFile('NotreDame.off')
+		self.headMesh.loadFile('NotreDameMedium.off')
 		self.headMeshLowres = PolyMesh()
 		self.headMeshLowres.loadFile('NotreDameLowres.off')
 		self.rotAngle = 0
@@ -96,6 +96,7 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 		#ICP state variables
 		self.ICPTransformation = np.zeros(0)
 		self.ICPMutex = Lock()
+		self.ICPThread = None
 		
 		self.bbox = self.headMesh.getBBox()
 		self.camera.centerOnBBox(self.bbox, theta = -math.pi/2, phi = math.pi/2)
@@ -127,8 +128,8 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 		glColor3f(1, 0, 0)
 		glRasterPos2f(x, y)
 		glPushMatrix()
-		for i in range(len(text)):
-			glutBitmapCharacter(font, ord(text[i]))
+		#for i in range(len(text)):
+		#	glutBitmapCharacter(font, ord(text[i]))
 		glPopMatrix()
 		glEnable(GL_LIGHTING)
 		glEnable(GL_DEPTH_TEST)
@@ -242,8 +243,8 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 				self.camera.centerOnBBox(self.bbox, theta = -math.pi/2, phi = math.pi/2)
 				#Get the mesh's renderbuffer ready before the thread starts so that no ICP frames are missed
 				self.headMeshLowres.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
-				t = ICPThread(self.userMesh, self.headMeshLowres, self, self.ICPMutex)
-				t.start()
+				self.ICPThread = ICPThread(self.userMesh, self.headMeshLowres, self, self.ICPMutex)
+				self.ICPThread.start()
 		self.drawText(self.size[0]/2-50, self.size[1]-40, "Showing Captured Face")
 		self.Refresh()
 	
@@ -255,6 +256,13 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 		glPopMatrix()
 		self.headMeshLowres.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
 		self.drawText(self.size[0]/2-50, self.size[1]-40, "Aligning Face with Statue...")
+		if not self.ICPThread.isAlive():
+			print "Alignment finished..."
+	
+	def handleShowStretchState(self):
+		#TODO: Finish this
+		self.GUIState = STATE_SHOWSTRETCH
+		self.Refresh()
 	
 	def repaint(self):
 		#Set up projection matrix
