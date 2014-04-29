@@ -89,6 +89,14 @@ void FTHelper::saveOffFile() {
 	exit(0);
 }
 
+// populates an array for the ShapePoints
+void FTHelper::GetShapePoints() {
+	// get the 2D tracked shapes
+	UINT ptCount = 0;
+	m_pFTResult->Get2DShapePoints((FT_VECTOR2D**)keyPoints, &ptCount);
+	int i = 0;
+}
+
 BOOL FTHelper::SubmitFraceTrackingResult(IFTResult* pResult)
 {
     if (pResult != NULL && SUCCEEDED(pResult->GetStatus()))
@@ -97,6 +105,8 @@ BOOL FTHelper::SubmitFraceTrackingResult(IFTResult* pResult)
         {
             (*m_CallBack)(m_CallBackParam);
         }
+
+		//GetShapePoints();
 
         if (m_DrawMask)
         {
@@ -118,6 +128,7 @@ BOOL FTHelper::SubmitFraceTrackingResult(IFTResult* pResult)
             }
             IFTModel* ftModel;
             HRESULT hr = m_pFaceTracker->GetFaceModel(&ftModel);
+			
             if (SUCCEEDED(hr))
             {
                 hr = VisualizeFaceModel(m_colorImage, ftModel, &cameraConfig, pSU, 1.0, viewOffset, pResult, 0x00FFFF00);

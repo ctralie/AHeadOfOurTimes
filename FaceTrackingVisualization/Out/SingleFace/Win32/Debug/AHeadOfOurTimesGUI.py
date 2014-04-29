@@ -12,6 +12,7 @@ from Geodesics import *
 from PointCloud import *
 from Cameras3D import *
 from ICP import *
+from GMDS import *
 from GetFace import *
 from sys import exit, argv
 import random
@@ -53,20 +54,21 @@ def saveImage(canvas, filename):
 	b.SaveFile(filename, wx.BITMAP_TYPE_PNG)
 	
 class ICPThread(Thread):
-	def __init__(self, userMesh, headMeshLowres, glcanvas, ICPMutex):
+	def __init__(self, userMesh, targetHead, glcanvas, ICPMutex):
 		Thread.__init__(self)
 		self.userMesh = userMesh
-		self.headMeshLowres = headMeshLowres
+		self.targetHead = targetHead
 		self.glcanvas = glcanvas
 		self.ICPMutex = ICPMutex
 	def run(self):
-		ICP_MeshToMesh(self.userMesh, self.headMeshLowres, False, False, False, True, self.glcanvas, self.ICPMutex)
+		ICP_MeshToMesh(self.userMesh, self.targetHead, False, False, False, True, self.glcanvas, self.ICPMutex)
 
 class MeshViewerCanvas(glcanvas.GLCanvas):
 	def __init__(self, parent):
 		attribs = (glcanvas.WX_GL_RGBA, glcanvas.WX_GL_DOUBLEBUFFER, glcanvas.WX_GL_DEPTH_SIZE, 24)
 		glcanvas.GLCanvas.__init__(self, parent, -1, attribList = attribs)	
 		self.context = glcanvas.GLContext(self)
+		self.setText = False
 		
 		self.parent = parent
 		#Camera state variables
@@ -88,11 +90,15 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 		self.headMesh.loadFile('NotreDameMedium.off')
 		self.headMeshLowres = PolyMesh()
 		self.headMeshLowres.loadFile('NotreDameLowres.off')
+		self.styrofoamHead = PolyMesh()
+		self.styrofoamHead.loadFile('StyrofoamHead.off')
 		self.rotAngle = 0
 		self.zoom = 0
 		self.rotCount = 0
+		self.timelineCount = 0
 		#User's face
 		self.userMesh = None
+		self.colorUserMesh = None
 		#ICP state variables
 		self.ICPTransformation = np.zeros(0)
 		self.ICPMutex = Lock()
@@ -136,6 +142,9 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 	
 	def startButtonHandler(self, evt):
 		print "Starting Face capture..."
+		if not self.setText:
+			self.titleText.SetLabelText("Capturing Face...")
+			self.setText = True
 		#os.popen3("SingleFace.exe") #Captures the face
 		process = subprocess.Popen("SingleFace", shell=True, stdout=subprocess.PIPE)
 		process.wait()
@@ -148,6 +157,7 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 		self.GUIState = STATE_SHOWPOINTS
 		self.GUISubstate = SHOWPOINTS_ZOOMIN
 		self.zoom = 0
+		self.setText = False
 		self.repaint()
 
 	def processEraseBackgroundEvent(self, event): pass #avoid flashing on MSW.
@@ -179,29 +189,36 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 		self.headMesh.renderGL()
 		self.rotAngle = self.rotAngle + 1
 		self.rotAngle = self.rotAngle % 360
-		self.drawText(self.size[0]/2-50, self.size[1]-40, "A Head of Our Times")
+		#self.drawText(self.size[0]/2-50, self.size[1]-40, "A Head of Our Times")
+		if not self.setText:
+			self.titleText.SetLabelText("A Head of Our Times")
+			self.startButton.SetLabelText("Click To Start")
+			self.setText = True
 		time.sleep(0.01)
 		self.Refresh()
 		
 	def handleShowPointsState(self):
 		if self.GUISubstate == SHOWPOINTS_ZOOMIN:
+			if not self.setText:
+				self.titleText.SetLabelText("Showing 3D Face Capture Result")
 			glTranslatef(0, 0, self.zoom)
 			self.userMesh.renderGL(drawEdges = 1, drawVerts = 1, drawNormals = 0, drawFaces = 0)
 			glTranslatef(0, 0, -self.zoom)
 			self.zoom = self.zoom + 0.005
 			time.sleep(0.01)
-			if self.zoom >= abs(self.zCenter/5):
+			if self.zoom >= abs(self.zCenter/6):
 				self.GUISubstate = SHOWPOINTS_ROTATELEFT
 				self.rotAngle = 0
 				self.rotCount = 0
 		elif self.GUISubstate == SHOWPOINTS_ROTATELEFT:
+			self.setText = True
 			glTranslatef(0, 0, self.zCenter + self.zoom)
 			glRotatef(self.rotAngle, 0, 1, 0)
 			glTranslatef(0, 0, -self.zCenter)
 			if self.rotCount == 0:
 				self.userMesh.renderGL(drawEdges = 1, drawVerts = 1, drawNormals = 0, drawFaces = 0)
 			else:
-				self.userMesh.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
+				self.userMesh.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1, lightingOn = False)
 			self.rotAngle = self.rotAngle - 1
 			if self.rotAngle < -60:
 				self.GUISubstate = SHOWPOINTS_ROTATERIGHT
@@ -213,7 +230,7 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 			if self.rotCount == 0:
 				self.userMesh.renderGL(drawEdges = 1, drawVerts = 1, drawNormals = 0, drawFaces = 0)
 			else:
-				self.userMesh.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
+				self.userMesh.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1, lightingOn = False)
 			self.rotAngle = self.rotAngle + 1
 			if self.rotAngle > 60:
 				self.rotCount = self.rotCount + 1
@@ -226,38 +243,142 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 			glTranslatef(0, 0, self.zCenter + self.zoom)
 			glRotatef(self.rotAngle, 0, 1, 0)
 			glTranslatef(0, 0, -self.zCenter)
-			self.userMesh.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
+			self.userMesh.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1, lightingOn = False)
 			self.rotAngle = self.rotAngle - 1
 			if self.rotAngle <= 0:
 				self.GUISubstate = SHOWPOINTS_ZOOMOUT
 			time.sleep(0.01)
 		elif self.GUISubstate == SHOWPOINTS_ZOOMOUT:
 			glTranslatef(0, 0, self.zoom)
-			self.userMesh.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
+			self.userMesh.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1, lightingOn = False)
 			glTranslatef(0, 0, -self.zoom)
 			self.zoom = self.zoom - 0.005
 			time.sleep(0.01)
 			if self.zoom <= 0:
 				self.GUIState = STATE_SHOWICP
-				self.bbox = self.headMeshLowres.getBBox()
+				self.setText = False
+				self.bbox = self.styrofoamHead.getBBox()
 				self.camera.centerOnBBox(self.bbox, theta = -math.pi/2, phi = math.pi/2)
 				#Get the mesh's renderbuffer ready before the thread starts so that no ICP frames are missed
-				self.headMeshLowres.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
-				self.ICPThread = ICPThread(self.userMesh, self.headMeshLowres, self, self.ICPMutex)
+				self.styrofoamHead.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
+				self.ICPThread = ICPThread(self.userMesh, self.styrofoamHead, self, self.ICPMutex)
 				self.ICPThread.start()
 		self.drawText(self.size[0]/2-50, self.size[1]-40, "Showing Captured Face")
 		self.Refresh()
+	
+	def transplantColors(self):
+		perms = np.random.permutation(len(self.userMesh.vertices))
+		N = min(1000, len(perms))
+		VX = np.zeros((N, 3))
+		CX = np.zeros((N, 3))
+		#Randomly subsample points for speed
+		
+		for i in range(N):
+			idx = perms[i]
+			P = self.userMesh.vertices[idx].pos
+			C = self.userMesh.vertices[idx].color
+			VX[i, :] = np.array([P.x, P.y, P.z])
+			CX[i, :] = C
+		VX = transformPoints(self.ICPTransformation, VX)
+		self.titleText.SetLabelText("Placing Colors on Head")
+		print "Getting initial guess of point positions..."
+		ts, us = getInitialGuessClosestPoints(VX, self.styrofoamHead)
+		print "Finished initial guess of point positions"
+		self.colorUserMesh = transplantColorsLaplacianUsingBarycentric(self.styrofoamHead, CX, ts, us)
 	
 	def handleICPState(self):
 		glPushMatrix()
 		if self.ICPTransformation.shape[0] > 0:
 			glMultMatrixd(self.ICPTransformation.transpose().flatten())
-		self.userMesh.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
+		self.userMesh.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1, lightingOn = False)
 		glPopMatrix()
-		self.headMeshLowres.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1)
-		self.drawText(self.size[0]/2-50, self.size[1]-40, "Aligning Face with Statue...")
+		glColor3f(0.7, 0.7, 0.7)
+		self.styrofoamHead.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1, lightingOn = True)
+		#self.drawText(self.size[0]/2-50, self.size[1]-40, "Aligning Face with Statue...")
+		if not self.setText:
+			self.titleText.SetLabelText("Performing Rigid Alignment to Statue")
+			self.setText = True
 		if not self.ICPThread.isAlive():
-			print "Alignment finished..."
+			print "Alignment finished"
+			print "Transplanting colors..."
+			self.transplantColors()
+			print "Finished Transplanting colors"
+			self.setText = False
+			self.GUIState = STATE_DECAY
+			self.timelineState = 0
+			self.bbox = self.colorUserMesh.getBBox()
+			self.camera.centerOnBBox(self.bbox, theta = -math.pi/2, phi = math.pi/2)
+	
+	def handleDecayState(self):
+		if self.timelineState > 40:
+			#Render the head in its current form
+			self.colorUserMesh.renderGL(drawEdges = 0, drawVerts = 0, drawNormals = 0, drawFaces = 1, lightingOn = True)				
+		
+		if self.timelineState == 0:
+			titleFont = wx.Font(24, wx.FONTFAMILY_DECORATIVE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+			self.titleText.SetFont(titleFont)
+		if self.timelineState <= 20:
+			#TODO: Include Images here
+			self.titleText.SetLabelText("1180 - 1223: Paris becomes capital of French Kingdom")
+			time.sleep(0.05)
+			self.Refresh()
+		elif self.timelineState <= 40:
+			self.titleText.SetLabelText("1163: Construction of Notre Dame Cathedral Begins")
+			time.sleep(0.05)
+			self.Refresh()
+		elif self.timelineState <= 60:
+			self.titleText.SetLabelText("1245 - 1258: Remodling of North transept and addition of the Virtue")
+			time.sleep(0.1)
+		elif self.timelineState < 120:
+			year = int(np.round((self.timelineState - 60)*(1793 - 1258)/60.0 + 1258))
+			self.titleText.SetLabelText("%i: Virtue in Situ on Cathedral Facade"%year)
+			#Dampen the colors
+			for v in self.colorUserMesh.vertices:
+				C = v.color
+				meanC = sum(C)/float(len(C))
+				v.color = [c - (c - meanC)*0.025 for c in C]
+			self.colorUserMesh.needsDisplayUpdate = True
+		else:
+			if self.timelineState == 121:
+				self.titleText.SetLabelText("1793: French Revolution and the Iconoclasm/Vandalism")
+			#TODO: Rotate head slightly to left, fix chunks
+			if self.timelineState == 120:
+				USINGLAPLACIAN = False
+				self.titleText.SetLabelText("1793: French Revolution Iconoclasm: Decapitation Imminent...")
+				#Make some dents
+				perms = np.random.permutation(len(self.colorUserMesh.vertices))
+				print "CHUNKING"
+				constraints = []
+				chunks = 0
+				for i in range(0, 20):
+					idx = perms[i]
+					V = self.colorUserMesh.vertices[idx]
+					if USINGLAPLACIAN:
+						N = V.getNormal()
+						#if np.abs(N.z) < 0.8:
+						#	continue
+						chunks = chunks + 1
+						chunkSize = 0.05*np.random.rand(1)[0]
+						P = V.pos - chunkSize*Vector3D(0, 0, -1)
+						constraints.append((idx, P))
+						otherVerts = V.getVertexNeighbors()
+						for V2 in otherVerts:
+							P = V2.pos - chunkSize*0.5*Vector3D(0, 0, -1)
+							constraints.append((V2.ID, P))
+					else:
+						P = V.pos
+						randDiff = 0.02*np.random.rand(1)[0]
+						P = P - randDiff*V.getNormal()
+						V.pos = P
+						for V2 in V.getVertexNeighbors():
+							P = V2.pos - 0.5*randDiff*V2.getNormal()
+							V2.pos = P
+				if USINGLAPLACIAN:
+					self.colorUserMesh.solveVertexPositionsWithConstraints(constraints)
+				self.colorUserMesh.needsDisplayUpdate = True
+				print "There were %i chunks"%chunks
+		self.timelineState = self.timelineState + 1
+		self.Refresh()
 	
 	def handleShowStretchState(self):
 		#TODO: Finish this
@@ -295,6 +416,8 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 			self.handleShowPointsState()
 		elif self.GUIState == STATE_SHOWICP:
 			self.handleICPState()
+		elif self.GUIState == STATE_DECAY:
+			self.handleDecayState()
 		self.SwapBuffers()
 	
 	def initGL(self):		
@@ -349,6 +472,7 @@ class MeshViewerFrame(wx.Frame):
 		super(MeshViewerFrame, self).__init__(parent, id, title, pos, size, style, name)
 		#Initialize the menu
 		self.CreateStatusBar()
+		self.SetBackgroundColour((0, 0, 0))
 		
 		self.size = size
 		self.pos = pos
@@ -366,16 +490,25 @@ class MeshViewerFrame(wx.Frame):
 		self.glcanvas = MeshViewerCanvas(self)
 		
 		#Text at the top
-		#titleText = wx.StaticText(self, label="Capturing Decay")
+		titleFont = wx.Font(46, wx.FONTFAMILY_DECORATIVE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+		self.glcanvas.titleText = wx.StaticText(self, label="Capturing Decay")
+		self.glcanvas.titleText.SetLabelText("A Head of Our Times")
+		self.glcanvas.titleText.SetFont(titleFont)
+		self.glcanvas.titleText.SetBackgroundColour((0, 0, 0))
+		self.glcanvas.titleText.SetForegroundColour((255, 255, 255))
 		#Buttons to go to a default view
-		startButton = wx.Button(self, -1, "Click To Start", size = (400, 100))
-		self.Bind(wx.EVT_BUTTON, self.glcanvas.startButtonHandler, startButton)
+		self.glcanvas.startButton = wx.Button(self, -1, "Click To Start", size = (400, 100))
+		self.glcanvas.startButton.SetBackgroundColour((127, 127, 127))
+		self.glcanvas.startButton.SetForegroundColour((0, 0, 0))
+		buttonFont = wx.Font(46, wx.FONTFAMILY_DECORATIVE, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
+		self.glcanvas.startButton.SetFont(buttonFont)
+		self.Bind(wx.EVT_BUTTON, self.glcanvas.startButtonHandler, self.glcanvas.startButton)
 		
 		#Finally add the two main panels to the sizer		
 		self.sizer = wx.BoxSizer(wx.VERTICAL)
-		#self.sizer.Add(titleText, 0, wx.EXPAND)
+		self.sizer.Add(self.glcanvas.titleText, 0, wx.FIXED)
 		self.sizer.Add(self.glcanvas, 2, wx.EXPAND)
-		self.sizer.Add(startButton, 0, wx.FIXED)
+		self.sizer.Add(self.glcanvas.startButton, 0, wx.FIXED)
 		
 		self.SetSizer(self.sizer)
 		self.Layout()

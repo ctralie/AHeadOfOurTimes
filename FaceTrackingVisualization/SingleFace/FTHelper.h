@@ -35,6 +35,7 @@ public:
     IFTFaceTracker* GetTracker() { return(m_pFaceTracker);}
 	std::string GetInterfaceText(){ return interfaceText;  }
     HRESULT GetCameraConfig(FT_CAMERA_CONFIG* cameraConfig);
+	void GetShapePoints();
 	void saveOffFile();
 
 private:
@@ -67,6 +68,7 @@ private:
 	std::string					interfaceText;
 	clock_t						validFaceStartTime;
 	bool						timingFace;
+	double						keyPoints[200];
 
     BOOL SubmitFraceTrackingResult(IFTResult* pResult);
     void SetCenterOfImage(IFTResult* pResult);
