@@ -110,28 +110,43 @@ void saveFaceMeshTempFile(IFTImage* colorImage, NUI_IMAGE_RESOLUTION colorRes,
 
 	ofstream tempFile;
 	tempFile.open("temp.txt");
+	//Also save the color and the depth image as a .m file
+	ofstream colorDepthStream;
+	colorDepthStream.open("temp.m");
+	colorDepthStream << "xyzrgb = [";
 	for (int y = 0; y < iHeight; y++) {
 		int offset = y*iWidth;
 		for (int x = 0; x < iWidth; x++) {
 			USHORT* ptr = (USHORT*)(depthImageBuffer + 2 * (offset + x));
-			if (!faceMask[offset + x] || *ptr == 0)
-				continue;
 			USHORT usDepthValue = *ptr;
 			Vector4 P = NuiTransformDepthImageToSkeleton(x, y, usDepthValue, depthRes);
 			LONG plColorX, plColorY;
 			NuiImageGetColorPixelCoordinatesFromDepthPixelAtResolution(colorRes, depthRes, NULL, x, y, usDepthValue, &plColorX, &plColorY);
 			LONG index = plColorX + plColorY*iWidth;
-			BYTE B = colorImageBuffer[index * 4];
-			BYTE G = colorImageBuffer[index * 4 + 1];
-			BYTE R = colorImageBuffer[index * 4 + 2];
-			BYTE A = colorImageBuffer[index * 4 + 3];
+			BYTE B  = 0, G = 0, R = 0, A = 0;
+			if (index * 4 < iWidth*iHeight * 4) {
+				B = colorImageBuffer[index * 4];
+				G = colorImageBuffer[index * 4 + 1];
+				R = colorImageBuffer[index * 4 + 2];
+				A = colorImageBuffer[index * 4 + 3];
+			}
 			FLOAT X = P.x / P.w;
 			FLOAT Y = P.y / P.w;
 			FLOAT Z = P.z / P.w;
+			colorDepthStream << X << " " << Y << " " << Z << " " << (int)R << " " << (int)G << " " << (int)B << ";\n";
+			if (!faceMask[offset + x] || *ptr == 0)
+				continue;//Only output the point if it's within the face mask
 			tempFile << y << " " << x << " " << X << " " << Y << " " << Z << " " << (int)R << " " << (int)G << " " << (int)B << "\n";
 		}
 	}
 	tempFile.close();
+	colorDepthStream << "];\n";
+	colorDepthStream << "RGB = reshape(xyzrgb(:, 4:6), 640, 480, 3);\n";
+	colorDepthStream << "XYZ = reshape(xyzrgb(:, 1:3), 640, 480, 3);\n";
+	colorDepthStream << "RGB = permute(uint8(RGB), [2, 1, 3]);\n";
+	colorDepthStream << "XYZ = permute(XYZ, [2, 1, 3]);\n";
+	colorDepthStream << "clear xyzrgb;\n";
+	colorDepthStream.close();
 	delete[] vertexIndices;
 }
 
