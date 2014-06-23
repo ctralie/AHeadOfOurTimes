@@ -84,7 +84,7 @@ void saveFaceMesh(IFTImage* colorImage, NUI_IMAGE_RESOLUTION colorRes,
 
 
 void saveFaceMeshTempFile(IFTImage* colorImage, NUI_IMAGE_RESOLUTION colorRes,
-	IFTImage* depthImage, NUI_IMAGE_RESOLUTION depthRes, BOOL* faceMask) {
+	IFTImage* depthImage, NUI_IMAGE_RESOLUTION depthRes, BOOL* faceMask, float* rotation) {
 	int iWidth = depthImage->GetWidth();
 	int iHeight = depthImage->GetHeight();
 
@@ -146,6 +146,7 @@ void saveFaceMeshTempFile(IFTImage* colorImage, NUI_IMAGE_RESOLUTION colorRes,
 	colorDepthStream << "RGB = permute(uint8(RGB), [2, 1, 3]);\n";
 	colorDepthStream << "XYZ = permute(XYZ, [2, 1, 3]);\n";
 	colorDepthStream << "clear xyzrgb;\n";
+	colorDepthStream << "rotation = [" << rotation[0] << " " << rotation[1] << " " << rotation[2] << "]\n";
 	colorDepthStream.close();
 	delete[] vertexIndices;
 }

@@ -23,7 +23,7 @@ HRESULT drawMuseumInterface(IFTImage* pColorImg, bool validPosition) {
 	POINT midXTop;
 	midXTop.x = W/2;
 	midXTop.y = H;
-	pColorImg->DrawLine(midXBottom, midXTop, 0x000000FF, 5);
+	//pColorImg->DrawLine(midXBottom, midXTop, 0x000000FF, 5);
 
 	//Step 2: Draw border
 	POINT topLeft;
