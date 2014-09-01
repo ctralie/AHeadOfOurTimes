@@ -89,7 +89,11 @@ void FTHelper::saveOffFile() {
 	FLOAT rotationXYZ[3];
 	FLOAT translationXYZ[3];
 	m_pFTResult->Get3DPose(&scale, rotationXYZ, translationXYZ);
-	saveFaceMeshTempFile(m_colorImage, m_colorRes, m_depthImage, m_depthRes, m_faceMask, rotationXYZ);
+	//saveFaceMeshTempFile(m_colorImage, m_colorRes, m_depthImage, m_depthRes, m_faceMask, rotationXYZ);
+	FT_VECTOR2D* pPts2D;
+	UINT pts2DCount;
+	HRESULT hr = m_pFTResult->Get2DShapePoints(&pPts2D, &pts2DCount);
+	saveFaceImageWithKeypoints(m_colorImage, m_colorRes, pPts2D, pts2DCount);
 	exit(0);
 }
 
@@ -136,7 +140,7 @@ BOOL FTHelper::SubmitFraceTrackingResult(IFTResult* pResult)
             if (SUCCEEDED(hr))
             {
                 hr = VisualizeFaceModel(m_colorImage, ftModel, &cameraConfig, pSU, 1.0, viewOffset, pResult, 0x00FFFF00);
-				hr = getFaceMask(m_faceMask, ftModel, &cameraConfig, pSU, 1.0, viewOffset, pResult);
+				//hr = getFaceMask(m_faceMask, ftModel, &cameraConfig, pSU, 1.0, viewOffset, pResult);
                 ftModel->Release();
 				//saveOffFile();
 				/*FLOAT cx, cy, cz;

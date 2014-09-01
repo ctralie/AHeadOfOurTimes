@@ -6,8 +6,43 @@
 #include <NuiApi.h>
 #include "FTHelper.h"
 #include "SaveFaceMesh.h"
+#include "CImg.h"
+using namespace cimg_library;
 
 using namespace std;
+
+void saveFaceImageWithKeypoints(IFTImage* colorImage, NUI_IMAGE_RESOLUTION colorRes,
+	FT_VECTOR2D* keyPoints, UINT NPoints) {
+	int iWidth = colorImage->GetWidth();
+	int iHeight = colorImage->GetHeight();
+	BYTE* colorImageBuffer = colorImage->GetBuffer();
+	CImg<unsigned char> image(iWidth, iHeight, 1, 3, 0);
+
+	for (int y = 0; y < iHeight; y++) {
+		int offset = y*iWidth;
+		for (int x = 0; x < iWidth; x++) {
+			LONG index = x + y*iWidth;
+			BYTE B = colorImageBuffer[index * 4];
+			BYTE G = colorImageBuffer[index * 4 + 1];
+			BYTE R = colorImageBuffer[index * 4 + 2];
+			BYTE A = colorImageBuffer[index * 4 + 3];
+			unsigned char color[3] = { R, G, B };
+			image.draw_rectangle(x, y, x + 1, y + 1, color);
+		}
+	}
+	unsigned char c_blue[3] = { 0, 0, 255 };
+	ofstream keyPointsFile;
+	keyPointsFile.open("keypoints.txt");
+	for (int i = 0; i < NPoints; i++) {
+		int x = (int)keyPoints[i].x;
+		int y = (int)keyPoints[i].y;
+		//image.draw_rectangle(x, y, x + 2, y + 2, c_blue);
+		keyPointsFile << keyPoints[i].x << " " << keyPoints[i].y << " ";
+	}
+	image.save("face.png");
+}
+
+
 
 void saveFaceMesh(IFTImage* colorImage, NUI_IMAGE_RESOLUTION colorRes, 
 	IFTImage* depthImage, NUI_IMAGE_RESOLUTION depthRes, BOOL* faceMask) {

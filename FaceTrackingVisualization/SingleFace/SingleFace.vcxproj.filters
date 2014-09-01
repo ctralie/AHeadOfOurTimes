@@ -50,6 +50,9 @@
     <ClInclude Include="SaveFaceMesh.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="CImg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
