@@ -1,16 +1,19 @@
-res = 500;
+res = 800;
 
 %X1: The original face image
-X1 = load('keypoints.txt');
-X1 = [X1(1:2:end)' X1(2:2:end)'];
-imagein = imread('face.png');
+%X1 = load('keypoints.txt');
+%X1 = [X1(1:2:end)' X1(2:2:end)'];
+%imagein = imread('face.png');
+
+X1 = load('MyFaceKeypoints.txt');
+imagein = imread('MyFace.jpg');
 
 %X2: The target texture coordinate landmarks
 X2 = load('landmarksTC.mat');
 X2 = X2.landmarksTC;
 
-X2 = X2*500;%Scale coords to fit inside of output image cube
-imageout = zeros(res, res, 3);
+X2 = X2*res;%Scale coords to fit inside of output image cube
+imageout = 100*ones(res, res, 3);
 
 %Use D2's delaunay triangulation class for fast point
 %location, and impose the graph topology of D2 on X1
