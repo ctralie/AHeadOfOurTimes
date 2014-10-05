@@ -195,6 +195,7 @@ xcopy "$(FTSDK_DIR)Redist\amd64\FaceTrackData.dll" "$(OutDir)" /eiycq
     <ClInclude Include="CImg.h" />
     <ClInclude Include="eggavatar.h" />
     <ClInclude Include="FaceMask.h" />
+    <ClInclude Include="Options.h" />
     <ClInclude Include="SaveFaceMesh.h" />
     <ClInclude Include="SingleFace.h" />
     <ClInclude Include="FTHelper.h" />

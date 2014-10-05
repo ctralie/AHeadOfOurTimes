@@ -25,18 +25,23 @@ NLandmarks = length(landmarks);
 NVertices = size(vertex, 2);    
 [D, Z, Q] = perform_fast_marching_mesh(vertex, faces, landmarks);
 [B, ~, J] = unique(Q);
+options.method = 'continuous';
+options.verb = 0;
+paths = compute_geodesic_mesh(D, vertex, faces, landmarks, options);
+optionx.colorfx;
+plot_fast_marching_mesh(vertex, faces, D, paths, options);
 
-v = randperm(NLandmarks)';
-J(J == 101) = 100;
-J = v(J);
-clf;
-hold on;
-options.face_vertex_color = J;
-plot_mesh(vertex, faces, options);
-shading interp;
-colormap jet(256);
-h = plot3(vertex(1, landmarks), vertex(2, landmarks), vertex(3, landmarks), 'k.');
-set(h, 'MarkerSize', 15);
+% v = randperm(NLandmarks)';
+% J(J == 101) = 100;
+% J = v(J);
+% clf;
+% hold on;
+% options.face_vertex_color = D;
+% plot_mesh(vertex, faces, options);
+% shading interp;
+% colormap jet(256);
+% h = plot3(vertex(1, landmarks), vertex(2, landmarks), vertex(3, landmarks), 'k.');
+% set(h, 'MarkerSize', 15);
 
 keypoints = load('keypoints.txt');
 keypoints = [keypoints(1:2:end)' keypoints(2:2:end)'];
@@ -90,9 +95,9 @@ maxTC = max(TC, [], 1);
 TC = TC./repmat(maxTC, size(textureCoords, 1), 1);
 
 figure;
-plot(TC(:, 1), TC(:, 2), 'r.');
+plot(TC(1:20:end, 1), TC(1:20:end, 2), 'r.');
 hold on;
-scatter(TC(landmarks, 1), TC(landmarks, 2), 100);
+scatter(TC(landmarks, 1), TC(landmarks, 2), 10);
 axis square;
 axis equal;
 
