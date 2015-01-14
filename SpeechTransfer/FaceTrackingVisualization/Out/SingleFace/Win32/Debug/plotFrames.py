@@ -26,6 +26,7 @@ DEFAULT_POS = wx.Point(10, 10)
 
 WAVEFILENAME = "out.wav"
 NPOINTS = 121
+OFFSET = -1
 
 class FaceTalkingCanvas(glcanvas.GLCanvas):
 	def __init__(self, parent):
@@ -102,7 +103,9 @@ class FaceTalkingCanvas(glcanvas.GLCanvas):
 		for i in range(self.NFrames):
 			fin = open("%i.txt"%i, 'r')
 			lines = fin.readlines()
-			self.SampleDelays[i] = float(lines[0].split()[0])
+			#self.SampleDelays[i] = float(lines[0].split()[0]) + OFFSET
+			self.SampleDelays[i] = float(lines[0].split()[1])/(16000.0*2*5)
+			print self.SampleDelays[i]
 			lines = lines[1:]
 			X = np.zeros((len(lines), 3))
 			for k in range(len(lines)):
@@ -126,11 +129,11 @@ class FaceTalkingCanvas(glcanvas.GLCanvas):
 			pygame.mixer.init(frequency = self.Fs)
 			s = pygame.mixer.Sound(WAVEFILENAME)
 			s.play()
-			self.SampleDelays = self.SampleDelays - np.min(self.SampleDelays)
+			self.SampleDelays = self.SampleDelays - np.min(self.SampleDelays) + OFFSET
 			self.startTime = time.time()
 			self.Playing = True
 			self.Refresh()
-		
+			print np.min(self.SampleDelays)
 
 	def repaint(self):
 		#Set up projection matrix

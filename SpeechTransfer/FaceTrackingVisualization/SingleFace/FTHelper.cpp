@@ -389,10 +389,9 @@ HRESULT FTHelper::Init(HWND hWnd, FTHelperCallBack callBack, PVOID callBackParam
 
 	// Write a placeholder wave file header. Actual size of data section will be fixed up later.
     WriteWaveHeader(waveFile, capturer->GetOutputFormat(), 0);
-
 	capturer->Start(waveFile);
-
-	//Step 2: Initialize Timer
+	while(capturer->BytesCaptured() == 0) {}
+	
 	startTime = clock();
 
     return S_OK;
@@ -412,7 +411,6 @@ HRESULT FTHelper::Stop()
 	// Fix up the wave file header to reflect the right amount of captured data.
 	SetFilePointer(waveFile, 0, NULL, FILE_BEGIN);
 	WriteWaveHeader(waveFile, capturer->GetOutputFormat(), capturer->BytesCaptured());
-
 	CloseHandle(waveFile);
     delete capturer;
     SafeRelease(pNuiSensor);
@@ -475,7 +473,7 @@ BOOL FTHelper::SubmitFraceTrackingResult(IFTResult* pResult)
 				ss << frameNum << ".txt";
 				ofstream frameFile;
 				frameFile.open(ss.str());
-				frameFile << timestamp << " 0 0\n"; 
+				frameFile << timestamp << " " << bytesCaptured << " 0\n"; 
 				for (UINT i = 0; i < vertexCount; i++) {
 					frameFile << pPts3D[i].x << " " << pPts3D[i].y << " " << pPts3D[i].z << endl;
 				}
