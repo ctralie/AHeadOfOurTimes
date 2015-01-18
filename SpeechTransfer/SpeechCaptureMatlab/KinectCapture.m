@@ -2,7 +2,7 @@
 %http://www.mathworks.com/help/imaq/logging-image-data-to-disk.html
 %"The depth map is distance in millimeters from the camera plane"
 
-if 1
+if 0
 %%
 utilpath = fullfile(matlabroot, 'toolbox', 'imaq', 'imaqdemos', ...
     'html', 'KinectForWindows');
@@ -14,7 +14,7 @@ depthVid = videoinput('kinect', 2);
 
 triggerconfig([colorVid depthVid],'manual');
 
-FramesToAcquire = 60;
+FramesToAcquire = 300;
 colorVid.FramesPerTrigger = FramesToAcquire;
 depthVid.FramesPerTrigger = FramesToAcquire;
 
@@ -26,7 +26,8 @@ logfileDepth = VideoWriter('logfiledepth.mj2', 'Motion JPEG 2000');
 depthVid.LoggingMode = 'disk&memory';
 depthVid.DiskLogger = logfileDepth;
 
-audioRecObj = audiorecorder(22050, 16, 1);
+Fs = 22050;
+audioRecObj = audiorecorder(Fs, 16, 1);
 
 MaxFrames = 5*60*30;
 colorVid.FramesAcquiredFcnCount = 1;
@@ -35,6 +36,7 @@ depthVid.FramesAcquiredFcnCount = 1;
 depthVid.FramesAcquiredFcn = {KinectCaptureCallbacks(1, MaxFrames, audioRecObj)};
 
 
+record(audioRecObj);
 start([colorVid depthVid]);
 trigger([colorVid depthVid]);
 
@@ -50,9 +52,11 @@ colorTimes = colorTimes(1:colorVid.FramesAcquired, :);
 depthTimes = depthVid.UserData;
 depthTimes = depthTimes(1:depthVid.FramesAcquired, :);
 save('frameTimes.mat', 'colorTimes', 'depthTimes');
+audiowrite('audio.ogg', X, Fs);
+disp('Finish capture and logging to disk');
 end
 
-if 0
+if 1
 %%
 clear all;
 %Track and plot face keypoints
@@ -66,13 +70,16 @@ frame_h = 480;
 
 %Get the elapsed seconds relative to the first color frame
 load('frameTimes.mat');
-colorTimesDT = datetime(fix(colorTimes));
-colorTimes = seconds(colorTimesDT - colorTimesDT(1, :)) + (colorTimes(:, end) - floor(colorTimes(:, end)));
-depthTimesDT = datetime(fix(depthTimes));
-depthTimes = seconds(depthTimesDT - colorTimesDT(1, :)) + (depthTimes(:, end) - floor(depthTimes(:, end)));
+colorAudioSamples = colorTimes(:, end);
+colorTimesDT = datetime(fix(colorTimes(:, 1:6)));
+colorTimes = seconds(colorTimesDT - colorTimesDT(1)) + (colorTimes(:, 6) - floor(colorTimes(:, 6)));
+depthAudioSamples = depthTimes(:, end);
+depthTimesDT = datetime(fix(depthTimes(:, 1:6)));
+depthTimes = seconds(depthTimesDT - colorTimesDT(1)) + (depthTimes(:, 6) - floor(depthTimes(:, 6)));
 
 output.pred = [];% prediction set to null enabling detection
 depthFrameNum = 1;
+TRI = [];
 for depthFrameNum = 1:length(depthTimes)
     clf;
     depthFrame = read(depthReader, depthFrameNum);
@@ -90,33 +97,49 @@ for depthFrameNum = 1:length(depthTimes)
         continue;
     end
     
-    subplot(2, 2, 1);
-    imagesc(colorFrame);
-    title(sprintf('%i', colorFrameNum));
-    axis equal;
-    subplot(2, 2, 2);
-    imagesc(depthFrame);
-    title(sprintf('%i', depthFrameNum));
-    axis equal;
+    keyPoints = output.pred;
+    if isempty(TRI)
+        TRI = delaunay(double(keyPoints));
+    end
     
-    subplot(2, 2, 4);
-    imagesc(fliplr(depthFrame));
+    xyzPoints = depthToPointCloud(depthFrame, depthVid);
+    keyPoints = int32(round(keyPoints));
+    FacePC = zeros(size(keyPoints, 1), 3);
+    for ii = 1:length(keyPoints)
+        FacePC(ii, :) = xyzPoints(keyPoints(ii, 2), keyPoints(ii, 1), :);
+    end
+    h34 = subplot(2, 2, 3:4);
+    cla(h34);
+    trimesh(TRI, FacePC(:, 1), FacePC(:, 2), FacePC(:, 3));
     hold on;
-    scatter(output.pred(:, 1), output.pred(:, 2), 10, 'g', 'fill');
+    plot3(FacePC(:, 1), FacePC(:, 2), FacePC(:, 3), 'r.');
+    view(0, -50);
     axis equal;
-
-    subplot(2, 2, 3);
+    axis off;
+    
+    wBorder = 15;
+    subplot(2, 2, 2);
+    depthFrame = fliplr(depthFrame);
+    imagesc(depthFrame);
+    axis equal;
+    hold on;
+    scatter(keyPoints(:, 1), keyPoints(:, 2), 4, 'g', 'fill');
+    xlim([min(keyPoints(:, 1)) - wBorder, max(keyPoints(:, 1)) + wBorder]);
+    ylim([min(keyPoints(:, 2)) - wBorder, max(keyPoints(:, 2)) + wBorder]);
+    title(sprintf('%i', depthFrameNum));
+    keyPointsIdx = sub2ind(dims, keyPoints(:, 2), keyPoints(:, 1));
+    clims = [min(depthFrame(keyPointsIdx)), max(depthFrame(keyPointsIdx))];
+    caxis(clims);
+    colorbar;
+    
+    subplot(2, 2, 1);
     imagesc(alignedColorImage);
-    hold on;
-    scatter(output.pred(:, 1), output.pred(:, 2), 10, 'g', 'fill');
     axis equal;
-
-%     xyzPoints = depthToPointCloud(depthFrame, depthVid);
-%     X = xyzPoints(:, :, 1);
-%     Y = xyzPoints(:, :, 2);
-%     Z = xyzPoints(:, :, 3);
-%     C = double(reshape(alignedColorImage, [], 3)) / 255.0;
-%     scatter3(X(:), Y(:), Z(:), 20, reshape(alignedColorImage, [], 3), '.');
+    hold on;
+    scatter(keyPoints(:, 1), keyPoints(:, 2), 4, 'g', 'fill');
+    xlim([min(keyPoints(:, 1)) - wBorder, max(keyPoints(:, 1)) + wBorder]);
+    ylim([min(keyPoints(:, 2)) - wBorder, max(keyPoints(:, 2)) + wBorder]);
+    title(sprintf('%i', colorFrameNum));    
 
     print('-dpng', '-r200', sprintf('%i.png', depthFrameNum));
 end
