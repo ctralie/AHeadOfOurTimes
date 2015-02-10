@@ -390,9 +390,6 @@ HRESULT FTHelper::Init(HWND hWnd, FTHelperCallBack callBack, PVOID callBackParam
 	// Write a placeholder wave file header. Actual size of data section will be fixed up later.
     WriteWaveHeader(waveFile, capturer->GetOutputFormat(), 0);
 	capturer->Start(waveFile);
-	while(capturer->BytesCaptured() == 0) {}
-	
-	startTime = clock();
 
     return S_OK;
 }
@@ -408,6 +405,13 @@ HRESULT FTHelper::Stop()
 
 	//Now shut down audio stuff
 	capturer->Stop();
+
+	ofstream captureTimeFile;
+	captureTimeFile.open("captureTimeFile.txt");
+	double timestamp = (clock()) / (double) CLOCKS_PER_SEC;
+	captureTimeFile << timestamp << " " << capturer->BytesCaptured() << "\n";
+	captureTimeFile.close();
+
 	// Fix up the wave file header to reflect the right amount of captured data.
 	SetFilePointer(waveFile, 0, NULL, FILE_BEGIN);
 	WriteWaveHeader(waveFile, capturer->GetOutputFormat(), capturer->BytesCaptured());
@@ -422,6 +426,7 @@ HRESULT FTHelper::Stop()
 
 BOOL FTHelper::SubmitFraceTrackingResult(IFTResult* pResult)
 {
+	//DWORD bytesCaptured = capturer->BytesCaptured();
     if (pResult != NULL && SUCCEEDED(pResult->GetStatus()))
     {
         if (m_CallBack)
@@ -452,7 +457,7 @@ BOOL FTHelper::SubmitFraceTrackingResult(IFTResult* pResult)
             if (SUCCEEDED(hr))
             {
 				//Get time of occurrence of this frame
-				double timestamp = (clock() - startTime) / (double) CLOCKS_PER_SEC;
+				double timestamp = (clock()) / (double) CLOCKS_PER_SEC;
 
                 hr = VisualizeFaceModel(m_colorImage, ftModel, &cameraConfig, pSU, 1.0, viewOffset, pResult, 0x00FFFF00);
 				//ADDED BY CHRIS TRALIE
@@ -462,7 +467,6 @@ BOOL FTHelper::SubmitFraceTrackingResult(IFTResult* pResult)
 
 				FLOAT *pAUs;
 				UINT auCount;
-				DWORD bytesCaptured = capturer->BytesCaptured();
 
 				m_pFTResult->GetAUCoefficients(&pAUs, &auCount);
 				FLOAT scale, rotationXYZ[3], translationXYZ[3];
@@ -473,7 +477,7 @@ BOOL FTHelper::SubmitFraceTrackingResult(IFTResult* pResult)
 				ss << frameNum << ".txt";
 				ofstream frameFile;
 				frameFile.open(ss.str());
-				frameFile << timestamp << " " << bytesCaptured << " 0\n"; 
+				frameFile << timestamp << "\n";
 				for (UINT i = 0; i < vertexCount; i++) {
 					frameFile << pPts3D[i].x << " " << pPts3D[i].y << " " << pPts3D[i].z << endl;
 				}
