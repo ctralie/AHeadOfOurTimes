@@ -45,7 +45,7 @@ def saveImage(canvas, filename):
 	
 
 #GUI States
-(STATE_NORMAL, STATE_CHOOSEPOINT) = (0, 1)
+(STATE_NORMAL, STATE_DRAWSMALLIDX, STATE_CHOOSEPOINT) = (0, 1, 2)
 
 class MeshViewerCanvas(glcanvas.GLCanvas):
 	def __init__(self, parent):
@@ -107,6 +107,13 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 			return
 		self.bbox = self.mesh.getBBox()
 		self.camera.centerOnBBox(self.bbox, theta = -math.pi/2, phi = math.pi/2)
+		self.Refresh()
+	
+	def displayIdxColorsCheckbox(self, evt):
+		if evt.Checked():
+			self.GUIState = STATE_DRAWSMALLIDX
+		else:
+			self.GUIState = STATE_NORMAL
 		self.Refresh()
 	
 	def displayMeshFacesCheckbox(self, evt):
@@ -184,11 +191,16 @@ class MeshViewerCanvas(glcanvas.GLCanvas):
 					v = self.mesh.vertices[self.PointsSelected[i]].pos
 					glVertex3f(v.x, v.y, v.z)
 				glEnd()
+		elif self.GUIState == STATE_DRAWSMALLIDX:
+			glClearColor(0.0, 0.0, 0.0, 0.0)
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+			if self.mesh:
+				self.mesh.renderGLIndices(4)
 		elif self.GUIState == STATE_CHOOSEPOINT:
 			glClearColor(0.0, 0.0, 0.0, 0.0)
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 			if self.mesh:
-				self.mesh.renderGLIndices()
+				self.mesh.renderGLIndices(20)
 				pixel = glReadPixels(self.MousePos[0], self.MousePos[1], 1, 1, GL_RGBA, GL_UNSIGNED_BYTE)
 				[R, G, B, A] = [int(pixel.encode("hex")[i*2:(i+1)*2], 16) for i in range(4)]
 				idx = extractFromRGBA(R, G, B, 0) - 1
@@ -294,6 +306,10 @@ class MeshViewerFrame(wx.Frame):
 		self.rightPanel.Add(viewPanel, 0, wx.EXPAND)
 		
 		#Checkboxes for displaying data
+		self.displayIdxColorsCheckbox = wx.CheckBox(self, label = "Display IDX Colors")
+		self.displayIdxColorsCheckbox.SetValue(False)
+		self.Bind(wx.EVT_CHECKBOX, self.glcanvas.displayIdxColorsCheckbox, self.displayIdxColorsCheckbox)		
+		self.rightPanel.Add(self.displayIdxColorsCheckbox, 0, wx.EXPAND)
 		self.displayMeshFacesCheckbox = wx.CheckBox(self, label = "Display Mesh Faces")
 		self.displayMeshFacesCheckbox.SetValue(True)
 		self.Bind(wx.EVT_CHECKBOX, self.glcanvas.displayMeshFacesCheckbox, self.displayMeshFacesCheckbox)
