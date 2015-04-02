@@ -1,0 +1,106 @@
+#Implement the technique in the Sumner/Popovic paper
+#"Deformation Transfer for Triangle Meshes"
+import numpy as np
+from scipy import sparse
+from scipy.sparse import csr_matrix
+from scipy.sparse.linalg import lsqr, cg, eigsh
+from scipy.spatial import Delaunay
+import scipy.io as sio
+from scipy.sparse.linalg import spsolve, bicg
+
+#Return a matrix which spans a 3D parallelpiped in line
+#with the given triangle in V
+def getVRelMatrix(V):
+	V4 = np.cross(V[1, :] - V[0, :], V[2, :] - V[0, :])
+	V4 = V[0, :] + V4/(np.dot(V4, V4)**0.25)
+	V1 = V[0, :].copy()
+	V[0:2, :] = V[1:3, :].copy()
+	V[2, :] = V4.copy()
+	VRet = V - np.tile(V1, (3, 1))
+	return VRet
+
+class DeformationMesh(object):
+	#faces, number of vertices
+	def __init__(self, faces, NVertices):
+		self.faces = faces
+		self.NVertices = NVertices
+		self.A = np.array([])
+	
+	#targetPos is an NVertices x 3 array of target positions
+	def setupMatrix(self, targetPos):
+		I = [] #I indices
+		J = [] #J indices
+		M = [] #Matrix values
+		for i in range(self.faces.shape[0]):
+			F = self.faces[i, :]
+			V = targetPos[F, :]
+			V = getVRelMatrix(V)
+			V = np.linalg.inv(V) #As long as there are no degenerate triangles this should work
+			idx = [F[1], F[2], self.NVertices+i, F[0]] #V2, V3, V4, V1
+			v4Elem = np.sum(V, 0)
+			for j in range(3):
+				I = I + [3*i+j]*4
+				J = J + idx
+				M = M + [V[0, j], V[1, j], V[2, j], -np.sum(V[:, j])]
+		self.A = sparse.coo_matrix((M, (I, J)), shape=(self.faces.shape[0]*3,self.faces.shape[0]+self.NVertices)).tocsr()
+		self.AT = self.A.T
+		self.ATA = self.AT.dot(self.A)
+
+	#Given a source mesh with an initial position and a final position
+	#solve for the vertex coordinates that do the analogous deformation
+	#for the target mesh
+	def solveForVertices(self, SInitial, SFinal):
+		S = np.zeros((3*self.faces.shape[0], 3))
+		for i in range(self.faces.shape[0]):
+			F = self.faces[i, :]
+			VI = getVRelMatrix(SInitial[F, :])
+			VF = getVRelMatrix(SFinal[F, :])
+			thisS = np.dot(VI, np.linalg.inv(VF))
+			S[i*3:(i+1)*3, :] = thisS.T
+		S = csr_matrix(S)
+		Verts = spsolve(self.ATA, self.AT.dot(S))
+		Verts = Verts.toarray()
+		return Verts[0:self.NVertices, :] #Ignore the perpendicular vertices
+
+if __name__ == '__main__':
+	fin = open('candideFaces.txt', 'r')
+	faces = np.array( [ [int(a) for a in x.split()] for x in fin.readlines() ], dtype = np.int32)
+	fin.close()
+	
+	StatueInfo = sio.loadmat('StatueInfo.mat')
+	
+	#Not all of the vertices in the candide model are used so do
+	#the appropriate substitution
+	fin = open('VerticesUsed.txt', 'r')
+	VerticesUsed = np.array( [int(a) for a in fin.readlines()] )
+	fin.close()
+	for i in range(len(VerticesUsed)):
+		faces[faces == VerticesUsed[i]] = i
+	
+	M = DeformationMesh(faces, len(VerticesUsed))
+	#The target mesh is the statue so we want its neutral face to be
+	#the initial mesh
+	M.setupMatrix(StatueInfo['NeutralPos'])
+	
+	#Load in my face neutral and another expression
+	fin = open('BasicExample/0.txt', 'r')
+	lines = fin.readlines()
+	SInitial = np.array( [ [float(a) for a in x.split()] for x in lines[1:] ] )
+	SInitial = SInitial[VerticesUsed, :]
+	fin.close()
+	fin = open('BasicExample/13.txt', 'r')
+	lines = fin.readlines()
+	SFinal = np.array( [ [float(a) for a in x.split()] for x in lines[1:] ] )
+	SFinal = SFinal[VerticesUsed, :]
+	fin.close()
+	
+	#Testing whether this works with the same face
+	M.setupMatrix(SInitial)
+	
+	V = M.solveForVertices(SInitial, SFinal)
+	VOut = np.zeros((121, 3))
+	VOut[VerticesUsed, :] = V
+	fout = open('out.txt', 'w')
+	for i in range(VOut.shape[0]):
+		fout.write("%g %g %g\n"%(VOut[i, 0], VOut[i, 1], VOut[i, 2]))
+	fout.close()

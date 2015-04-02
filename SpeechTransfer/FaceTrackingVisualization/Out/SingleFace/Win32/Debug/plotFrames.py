@@ -94,8 +94,8 @@ class FaceTalkingCanvas(glcanvas.GLCanvas):
 		
 		#Load in candide mesh information and store in an index buffer
 		fin = open('candideFaces.txt', 'r')
-		indices = np.array( [ [int(a) for a in x.split()] for x in fin.readlines() ], dtype = np.int32)
-		self.candideFaces = vbo.VBO(indices, target=GL_ELEMENT_ARRAY_BUFFER)
+		self.candideIndices = np.array( [ [int(a) for a in x.split()] for x in fin.readlines() ], dtype = np.int32)
+		self.candideFaces = vbo.VBO(candideIndices, target=GL_ELEMENT_ARRAY_BUFFER)
 		fin.close()
 		fin = open('candideTexCoords.txt', 'r')
 		self.texCoords = vbo.VBO(np.array( [ [float(a) for a in x.split()] for x in fin.readlines() ], dtype = np.float32))

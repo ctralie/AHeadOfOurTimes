@@ -1,3 +1,4 @@
+addpath(genpath('toolbox_fast_marching'));
 X = imread('NotreDameFrontHalfIDX.png');
 X = double(X);
 Y = X(:, :, 1)*(2^16) + X(:, :, 2)*(2^8) + X(:, :, 3);
@@ -35,3 +36,9 @@ VerticesUsed = unique(faces(:));
 load('NotreDameFrontHalfVerts.mat');
 vertex(:, VerticesUsed) = NotreDameFrontHalfVerts(MeshIdx, :)';
 plot_mesh(vertex, faces);
+
+%Save the neutral position and the index into NotreDameFrontHalf.toff
+NeutralPos = NotreDameFrontHalfVerts(MeshIdx, :);
+MeshIdx = MeshIdx - 1;
+save('StatueInfo.mat', 'NeutralPos', 'MeshIdx');
+dlmwrite('StatueNeutral.txt', VerticesUsed)
