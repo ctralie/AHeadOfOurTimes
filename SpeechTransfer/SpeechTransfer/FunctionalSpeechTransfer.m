@@ -1,5 +1,5 @@
-DRAWBASIS = 1;
-TESTFUNCTIONS = 1;
+DRAWBASIS = 0;
+TESTFUNCTIONS = 0;
 
 addpath(genpath('ShapeLab'));
 addpath(genpath('toolbox_fast_marching'));
@@ -11,7 +11,7 @@ Border = [1 36 37 39 54 53 55 57 10 32 30 28 29 14 12 11];
 
 plotlimsme = [];
 winfudge = 0.02;
-NBasis = 30; %Number of functions in the Laplace-Beltrami Basis
+NBasis = 100; %Number of functions in the Laplace-Beltrami Basis
 
 %Load in information about candide model and the Notre Dame statue
 load('StatueInfo.mat');
@@ -30,7 +30,7 @@ FCandide = reindex(FCandide);
 VCandide = VCandide(:, uidx);
 [~, FCandide] = read_mesh('candidesolid.off');
 
-[VNotre, FNotre] = readColorOff('NotreDameFrontHalf.off');
+[VNotre, FNotre, CNotre] = readColorOff('NotreDameFrontHalf.off');
 plotlimss = [min(VNotre(1, MeshIdx)), max(VNotre(1, MeshIdx)), ...
     min(VNotre(2, MeshIdx)), max(VNotre(2, MeshIdx)), ...
     min(VNotre(3, MeshIdx)), max(VNotre(3, MeshIdx))];
@@ -79,7 +79,7 @@ end
 firstV = [];
 MyShape = [];
 C = []; %Functional Map
-for ii = 1:1%N
+for ii = 1:300%N
     %Step 1: Load in the vertices for the current frame of the video
     fin = fopen(sprintf('%s/%i.txt', TestName, ii-1), 'r');
     VMine = textscan(fin, '%f', 'delimiter', ' ');
@@ -116,14 +116,38 @@ for ii = 1:1%N
             'basis1', MyShape.basis, 'areas1', MyShape.areas, 'basis2', NotreShape.basis, 'areas2', NotreShape.areas);
         if TESTFUNCTIONS
             for kk = 1:size(VMine, 1)
+                clf;
                 f = zeros(size(VMine, 1), 1);
                 f(kk) = 1;
                 fnotre = NotreShape.basis*C*(MyShape.basis)'*f;
-                subplot(1, 2, 1);
+                f = (MyShape.basis)'*f;
+                f = MyShape.basis*f;
+                [~, idx] = max(fnotre);
+                
+                subplot(2, 2, 1);
                 drawShape(MyShape, f);
+                hold on;
+                scatter3(VMine(kk, 1), VMine(kk, 2), VMine(kk, 3), 30, 'r', 'fill');
                 view(0, 90);
-                subplot(1, 2, 2);
+                
+                subplot(2, 2, 3);
+                plot_mesh(VMine', FCandide);
+                shading interp;
+                hold on;
+                scatter3(VMine(kk, 1), VMine(kk, 2), VMine(kk, 3), 30, 'r', 'fill');
+                view(0, 90);
+                
+                subplot(2, 2, 2);
                 drawShape(NotreShape, fnotre);
+                hold on;
+                scatter3(VNotreCrop(1, idx), VNotreCrop(2, idx), VNotreCrop(3, idx), 30, 'r', 'fill');
+                view(0, 90);
+                
+                subplot(2, 2, 4);
+                plot_mesh(VNotreCrop, FNotreCrop);
+                shading interp;
+                hold on;
+                scatter3(VNotreCrop(1, idx), VNotreCrop(2, idx), VNotreCrop(3, idx), 30, 'r', 'fill');
                 view(0, 90);
                 print('-dpng', '-r100', sprintf('%iTestFn.png', kk));
             end
@@ -145,16 +169,34 @@ for ii = 1:1%N
     
     subplot(1, 2, 1);
     plot_mesh(VNew, FCandide);
+    view(0, 90);
     xlim(plotlimsme(1:2));    ylim(plotlimsme(3:4));    zlim(plotlimsme(5:6));
     title('Original');
     
     %Step 3: Express displacements from the first frame as tangential,
     %normal, and cross displacements based on the chosen coordinate system
-    %and transfer onto the local coordinate system of the statue mesh
+    %and transfer onto the local coordinate system of the statue mesh using
+    %the functional map
     dV = VNew - firstV;
     dVNorm = dot(dV, NormMe, 2);
     dVTan = dot(dV, TanMe, 2);
     dVCross = dot(dV, CrossMe, 2);
     
+    dVNorm = 5*1e5*NotreShape.basis*C*(MyShape.basis)'*dVNorm;
+    dVTan = 5*1e5*NotreShape.basis*C*(MyShape.basis)'*dVTan;
+    dVCross = 5*1e5*NotreShape.basis*C*(MyShape.basis)'*dVCross;
+    
+    V = VNotreCrop' + bsxfun(@times, dVNorm, NormNotre) + ...
+        bsxfun(@times, dVTan, TanNotre) + bsxfun(@times, dVCross, CrossNotre);
+    %V = inv(T)*[V ones(size(V, 1), 1)]';
+    V = V';
+    
+    subplot(1, 2, 2);
+    plot_mesh(V(1:3, :), FNotreCrop);
+    view(0, 90);
+    shading interp;
+    xlim(plotlimss(1:2));    ylim(plotlimss(3:4));    zlim(plotlimss(5:6));
+    title('Transferred');
+    print('-dpng', '-r100', sprintf('%i.png', ii));
     
 end
