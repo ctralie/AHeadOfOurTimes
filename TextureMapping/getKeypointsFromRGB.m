@@ -64,7 +64,14 @@ FCandide = reindex(FCandide);
 VCandide = VCandide(:, uidx);
 
 [verts, faces] = readColorOff('NotreDameFrontHalfMouthCut.off');
-plot_mesh(verts(:, MeshIdx), FCandide);
+subplot(1, 2, 1);
+V = verts(:, MeshIdx);
+plot_mesh(V, FCandide);
+subplot(1, 2, 2);
+plot_mesh(verts, faces);
+shading interp;
+hold on;
+scatter3(V(1, :), V(2, :), V(3, :), 50, 'r', 'fill');
 
 MeshIdx = MeshIdx - 1;
 save('StatueInfo.mat', 'MeshIdx');

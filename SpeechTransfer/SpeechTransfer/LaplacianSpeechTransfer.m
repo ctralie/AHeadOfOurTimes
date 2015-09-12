@@ -26,20 +26,11 @@ reindex(uidx) = 1:length(uidx);
 FCandide = reindex(FCandide);
 VCandide = VCandide(:, uidx);
 
-[VNotre, FNotre, CNotre] = readColorOff('NotreDameFrontHalf.off');
+[VNotre, FNotre, CNotre] = readColorOff('NotreDameFrontHalfMouthCut.off');
 VNotreFirst(:, uidx) = VNotre(:, MeshIdx);
 plotlimss = [min(VNotre(1, MeshIdx)), max(VNotre(1, MeshIdx)), ...
     min(VNotre(2, MeshIdx)), max(VNotre(2, MeshIdx)), ...
     min(VNotre(3, MeshIdx)), max(VNotre(3, MeshIdx))];
-
-%Extract cropped region around the keypoints on the notre dame mesh
-if ~exist('NotreCrop.mat')
-    [VNotreCrop, FNotreCrop, cropmask, cropreindex] = ...
-        extractFaceBoundary( VNotre, FNotre, Border, NoseUIdx, MeshIdx );
-    save('NotreCrop.mat', 'VNotreCrop', 'FNotreCrop', 'cropmask', 'cropreindex');
-else
-    load('NotreCrop.mat');
-end
 
 %% Step 2:Setup normal and tangential coordinate systems on the first frame
 %of the Notre Dame statue
@@ -48,23 +39,24 @@ RP = mean(VNotre(:, MeshIdx(NoseUIdx)), 2);
 [NormNotre, TanNotre, CrossNotre] = estimateNormalsTangents(VNotre(:, MeshIdx)', FCandide', RP);
 
 %% Step 3: Setup Laplacian matrix for the cropped region of the face
-NotreShape.TRIV = FNotreCrop';
-NotreShape.X = VNotreCrop(1, :)';
-NotreShape.Y = VNotreCrop(2, :)';
-NotreShape.Z = VNotreCrop(3, :)';
+NotreShape.TRIV = FNotre';
+NotreShape.X = VNotre(1, :)';
+NotreShape.Y = VNotre(2, :)';
+NotreShape.Z = VNotre(3, :)';
 
-I = cropreindex(MeshIdx)';
+MeshIdx = double(MeshIdx);
+I = MeshIdx;
 J = (1:length(MeshIdx))';
 S = ones(length(MeshIdx), 1);
-NotreShape.funcs = full(sparse(I, J, S, size(VNotreCrop, 2), length(MeshIdx)));
+NotreShape.funcs = full(sparse(I, J, S, size(VNotre, 2), length(MeshIdx)));
 
 LapNotre = mshlp_matrix(NotreShape,struct('dtype','umbrella'));
-DeltaCoords = LapNotre*VNotreCrop';
+DeltaCoords = LapNotre*VNotre';
 %Add anchor entries
 [I, J, S] = find(LapNotre);
 
 omega = 1;
-nrange = cropreindex(MeshIdx);
+nrange = MeshIdx;
 N = length(nrange);
 I = [I; size(LapNotre, 1) + (1:N)'];
 J = [J; nrange(:)];
@@ -135,7 +127,7 @@ for ii = 1:NFrames
     VNotreNew = [x y z];
     
     subplot(1, 3, 3);
-    plot_mesh(VNotreNew', FNotreCrop);
+    plot_mesh(VNotreNew', FNotre);
     hold on;
     scatter3(VAnchors(:, 1), VAnchors(:, 2), VAnchors(:, 3), 10, 'r', 'full');
     shading interp;
@@ -144,6 +136,3 @@ for ii = 1:NFrames
     print('-dpng', '-r100', sprintf('%i.png', ii));
     fprintf(1, 'Finished Frame %i\n', ii);
 end
-
-
-
