@@ -7,9 +7,7 @@ from wx import glcanvas
 from Primitives3D import *
 from PolyMesh import *
 from LaplacianMesh import *
-from PointCloud import *
 from Cameras3D import *
-from ICP import *
 from sys import exit, argv
 import random
 import numpy as np
@@ -20,7 +18,7 @@ import subprocess
 import math
 import time
 
-DEFAULT_SIZE = wx.Size(1200, 800)
+DEFAULT_SIZE = wx.Size(1200, 813+22)
 DEFAULT_POS = wx.Point(10, 10)
 PRINCIPAL_AXES_SCALEFACTOR = 1
 
