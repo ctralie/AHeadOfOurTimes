@@ -8,6 +8,29 @@ from scipy.spatial import Delaunay
 import scipy.io as sio
 from scipy.sparse.linalg import spsolve, bicg
 
+#Iterative closest points
+def getRigidTransformation(Points, TargetPoints):
+    dim = Points.shape[1]
+    meanP = np.mean(Points, 0)
+    meanT = np.mean(TargetPoints, 0)
+    P = Points - meanP
+    T = TargetPoints - meanT
+    H = np.dot(P.T, T)
+    U, s, V = np.linalg.svd(H)
+    R = np.eye(dim+1)
+    R[0:dim, 0:dim] = np.dot(V.T, U.T)
+    #Transformation order:
+    #1: Move the point set so it's centered on the centroid
+    #2: Rotate the point set by the calculated rotation
+    #3: Move the point set so it's centered on the target centroid
+    T1 = np.eye(dim+1)
+    T1[0:dim, -1] = -meanP.T
+    T2 = np.eye(dim+1)
+    T2[0:dim, -1] = meanT
+    T = np.dot(T2, np.dot(R, T1))
+    return T
+    
+
 #Return a matrix whose columns span a 3D parallelpiped in line
 #with the given triangle in V
 def getVRelMatrix(V):
@@ -98,6 +121,12 @@ if __name__ == '__main__':
         SFinal = np.array( [ [float(a) for a in x.split()] for x in lines[1:] ] )
         SFinal = SFinal[VerticesUsed, :]
         fin.close()
+        
+        #Do ICP to align SFinal to SInitial as best as possible
+        T = getRigidTransformation(SFinal, SInitial)
+        VNew = np.concatenate((SFinal, np.ones((SFinal.shape[0], 1))), 1)
+        VNew = np.dot(T, VNew.T)
+        SFinal = VNew[0:3, :].T
         
         V = M.solveForVertices(SInitial, SFinal)
         VOut = np.zeros((121, 3))
