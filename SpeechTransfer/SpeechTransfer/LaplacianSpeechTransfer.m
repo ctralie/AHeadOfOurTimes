@@ -27,6 +27,7 @@ FCandide = reindex(FCandide);
 VCandide = VCandide(:, uidx);
 
 [VNotre, FNotre, CNotre] = readColorOff('NotreDameFrontHalf.off');
+VNotreFirst(:, uidx) = VNotre(:, MeshIdx);
 plotlimss = [min(VNotre(1, MeshIdx)), max(VNotre(1, MeshIdx)), ...
     min(VNotre(2, MeshIdx)), max(VNotre(2, MeshIdx)), ...
     min(VNotre(3, MeshIdx)), max(VNotre(3, MeshIdx))];
@@ -40,10 +41,11 @@ else
     load('NotreCrop.mat');
 end
 
-%% Step 2: Setup normals and tangents
-RP = mean(VNotre(:, NoseUIdx), 2);
-VNotreCandide = VNotre(:, MeshIdx);
-[NormNotre, TanNotre, CrossNotre] = estimateNormalsTangents(VNotreCandide', FCandide', RP);
+%% Step 2:Setup normal and tangential coordinate systems on the first frame
+%of the Notre Dame statue
+%Reference point used to make tangent (average of nose points)
+RP = mean(VNotre(:, MeshIdx(NoseUIdx)), 2); 
+[NormNotre, TanNotre, CrossNotre] = estimateNormalsTangents(VNotre(:, MeshIdx)', FCandide', RP);
 
 %% Step 3: Setup Laplacian matrix for the cropped region of the face
 NotreShape.TRIV = FNotreCrop';
@@ -91,7 +93,7 @@ for ii = 1:NFrames
         firstV = VMine;
         RP = mean(VMine(NoseUIdx, :), 1);
         %Estimate normals and tangents for first frame of my face
-        [NormMe, TanMe, CrossMe] = estimateNormalsTangents(VMine, FCandide', RP);
+        [NormMe, TanMe, CrossMe] = estimateNormalsTangents(VMine, FCandide', RP);        
         continue;
     end
     
@@ -119,24 +121,25 @@ for ii = 1:NFrames
     dVCross = dot(dV, CrossMe, 2);
     
     %Move keypoints
-    VAnchors = VNotreCandide' + bsxfun(@times, dVNorm*1000, NormNotre) + ...
+    VAnchors = VNotreFirst(:, uidx)' + bsxfun(@times, dVNorm*1000, NormNotre) + ...
         bsxfun(@times, dVTan*1000, TanNotre) + bsxfun(@times, dVCross*1000, CrossNotre);
     subplot(1, 3, 2);
     plot_mesh(VAnchors', FCandide);
+    title('Anchors');
     
     %Apply keypoints as anchors
-%     DeltaCoords(end-size(VAnchors, 1)+1:end, :) = omega*VAnchors;
-%     x = lsqr(LapNotre, DeltaCoords(:, 1), 1e-6, 10000);
-%     y = lsqr(LapNotre, DeltaCoords(:, 2), 1e-6, 10000);
-%     z = lsqr(LapNotre, DeltaCoords(:, 3), 1e-6, 10000);
-%     VNotreNew = [x y z];
-%     
-%     subplot(1, 3, 3);
-%     plot_mesh(VNotreNew', FNotreCrop);
-%     hold on;
-%     scatter3(VAnchors(:, 1), VAnchors(:, 2), VAnchors(:, 3), 10, 'r', 'full');
-%     shading interp;
-%     title('Transformed');
+    DeltaCoords(end-size(VAnchors, 1)+1:end, :) = omega*VAnchors;
+    x = lsqr(LapNotre, DeltaCoords(:, 1), 1e-6, 10000);
+    y = lsqr(LapNotre, DeltaCoords(:, 2), 1e-6, 10000);
+    z = lsqr(LapNotre, DeltaCoords(:, 3), 1e-6, 10000);
+    VNotreNew = [x y z];
+    
+    subplot(1, 3, 3);
+    plot_mesh(VNotreNew', FNotreCrop);
+    hold on;
+    scatter3(VAnchors(:, 1), VAnchors(:, 2), VAnchors(:, 3), 10, 'r', 'full');
+    shading interp;
+    title('Transformed');
     set(gcf,'PaperUnits','inches','PaperPosition',[0 0 18 6])
     print('-dpng', '-r100', sprintf('%i.png', ii));
     fprintf(1, 'Finished Frame %i\n', ii);
