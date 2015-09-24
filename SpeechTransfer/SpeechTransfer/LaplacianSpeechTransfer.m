@@ -50,19 +50,32 @@ J = (1:length(MeshIdx))';
 S = ones(length(MeshIdx), 1);
 NotreShape.funcs = full(sparse(I, J, S, size(VNotre, 2), length(MeshIdx)));
 
-LapNotre = mshlp_matrix(NotreShape,struct('dtype','umbrella'));
-DeltaCoords = LapNotre*VNotre';
+L = mshlp_matrix(NotreShape,struct('dtype','cotangent'));
+L = L + 300*speye(size(L, 1)); %Smooth out
+% L = -1*(abs(L) > 0);
+% L(1:size(L, 1)+1:end) = 0;
+% diag = sum(L, 2);
+% L(1:size(L, 1)+1:end) = abs(diag);
+
+DeltaCoords = L*VNotre';
 %Add anchor entries
-[I, J, S] = find(LapNotre);
+[I, J, S] = find(L);
 
 omega = 1;
 nrange = MeshIdx;
 N = length(nrange);
-I = [I; size(LapNotre, 1) + (1:N)'];
+I = [I; size(L, 1) + (1:N)'];
 J = [J; nrange(:)];
 S = [S; omega*ones(N, 1)];
 DeltaCoords = [DeltaCoords; omega*VNotre(:, 1:N)'];
-LapNotre = sparse(I, J, S, size(LapNotre, 1)+N, size(LapNotre, 2));
+L = sparse(I, J, S, size(L, 1)+N, size(L, 2));
+A = L'*L;
+%http://www.mathworks.com/help/matlab/examples/sparse-matrices.html#zmw57dd0e2472
+p = symamd(A); %Reorder to reduce fill
+pback(p) = 1:length(p); %Inverse permutation
+disp('Doing cholesky factorization...');
+R = chol(A(p, p), 'lower');
+disp('Finished cholesky factorization');
 
 %% Step 4: Loop through each frame and do the deformation
 firstV = [];
@@ -88,6 +101,10 @@ for ii = 1:NFrames
         [NormMe, TanMe, CrossMe] = estimateNormalsTangents(VMine, FCandide', RP);        
         continue;
     end
+    
+%     if exist(sprintf('%i.png', ii))
+%         continue;
+%     end
     
     %Step 2: Perform the best rigid alignment possible to the first frame
     fprintf(1, 'Error Before ICP: %g\n', sum(sum((firstV - VMine).^2)));
@@ -121,12 +138,14 @@ for ii = 1:NFrames
     
     %Apply keypoints as anchors
     DeltaCoords(end-size(VAnchors, 1)+1:end, :) = omega*VAnchors;
-    x = lsqr(LapNotre, DeltaCoords(:, 1), 1e-6, 10000);
-    y = lsqr(LapNotre, DeltaCoords(:, 2), 1e-6, 10000);
-    z = lsqr(LapNotre, DeltaCoords(:, 3), 1e-6, 10000);
-    VNotreNew = [x y z];
+    Y = L'*DeltaCoords;
+    tic
+    VNotreNew = R\(R'\Y(p, :));
+    toc
+    VNotreNew = VNotreNew(pback, :);
     
     subplot(1, 3, 3);
+    clf;
     plot_mesh(VNotreNew', FNotre);
     hold on;
     scatter3(VAnchors(:, 1), VAnchors(:, 2), VAnchors(:, 3), 10, 'r', 'full');
